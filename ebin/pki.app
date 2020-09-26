@@ -1,6 +1,6 @@
 %% -*- erlang -*-
 {application, pki,
- [{description, "The Obscrete PKI server and client"},
+ [{description, "PKI server and client"},
   {vsn, "1.0"},
   {modules, [pki_app,
              pki_config_schema,
