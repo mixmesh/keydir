@@ -75,23 +75,20 @@ delete(Name, Password) ->
 
 %% Exported: strerror
 
+strerror({file_db_corrupt, FileDbReason}) ->
+    ?error_log({file_db_corrupt, FileDbReason}),
+    <<"PKI database is corrupt">>;
+strerror(invalid_dir) ->
+    <<"PKI directory is invalid">>;
+strerror(user_already_exists) ->
+    <<"User already exists">>;
+strerror(no_such_user) ->
+    <<"No such user">>;
+strerror(permission_denied) ->
+    <<"Permission denied">>;
 strerror(Reason) ->
-    case Reason of
-        {file_db_corrupt, FileDbReason} ->
-            ?error_log({file_db_corrupt, FileDbReason}),
-            <<"PKI database is corrupt">>;
-        invalid_dir ->
-            <<"PKI directory is invalid">>;
-        user_already_exists ->
-            <<"User already exists">>;
-        no_such_user ->
-            <<"No such user">>;
-        permission_denied ->
-            <<"Permission denied">>;
-        _ ->
-            ?error_log({unknown_error, Reason}),
-            <<"Internal error">>
-    end.
+    ?error_log({unknown_error, Reason}),
+    <<"Internal error">>.
 
 %%
 %% Message handler
