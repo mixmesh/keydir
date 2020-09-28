@@ -21,11 +21,14 @@
 %% Exported: create
 
 create(User) ->
-    create(?TIMEOUT, User).
+    create(?TIMEOUT, User, ?EXTRA_OPTIONS).
 
-create(Timeout, User) ->
+create(User, Options) ->
+    create(?TIMEOUT, User, Options).
+
+create(Timeout, User, Options) ->
     ?dbg_log({create, Timeout, User}),
-    case connect([binary, {active, false}] ++ ?EXTRA_OPTIONS, Timeout) of
+    case connect([binary, {active, false}] ++ Options, Timeout) of
         {ok, Transport} ->
             try
                 ok = pki_util:write_integer(1, Transport, ?CREATE),
@@ -206,9 +209,9 @@ connect(Options, Timeout) ->
                                     NewTransport = Socket,
                                     put(pki_transport, NewTransport),
                                     ?daemon_tag_log(
-                                      system,
-                                      <<"WARNING: Falls back to direct access">>,
-                                      []),
+                                       system,
+                                       "WARNING: Falls back to direct access",
+                                       []),
                                     {ok, NewTransport};
                                 {error, Reason} ->
                                     {error, Reason}

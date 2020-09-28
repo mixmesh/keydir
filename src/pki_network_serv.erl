@@ -70,7 +70,7 @@ message_handler(
             case lists:member(Pid, Acceptors) of
                 true ->
                     {noreply,
-                     State#state{acceptors = lists:delete(pid, acceptors)}};
+                     State#state{acceptors = lists:delete(Pid, Acceptors)}};
                 false ->
                     ?error_log({not_an_acceptor, Pid}),
                     noreply
