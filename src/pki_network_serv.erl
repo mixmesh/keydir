@@ -3,7 +3,7 @@
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/serv.hrl").
--include("pki_serv.hrl").
+-include_lib("pki/include/pki_serv.hrl").
 -include("pki_network.hrl").
 
 -record(state, {%% pid()
@@ -99,8 +99,8 @@ read_request(Socket, Timeout) ->
         {ok, ?CREATE} ->
             ?dbg_log(create),
             try
-                User = pki_util:read_user(Socket, Timeout),
-                case pki_serv:create(User) of
+                DbUser = pki_util:read_user(Socket, Timeout),
+                case pki_serv:create(DbUser) of
                     ok ->
                         ok = pki_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->
@@ -120,9 +120,9 @@ read_request(Socket, Timeout) ->
             try
                 Name = pki_util:read_binary(1, Socket, Timeout),
                 case pki_serv:read(Name)  of
-                    {ok, User} ->
+                    {ok, DbUser} ->
                         ok = pki_util:write_integer(1, Socket, ?OK),
-                        pki_util:write_user(Socket, User#user{
+                        pki_util:write_user(Socket, DbUser#db_user{
                                                       password = <<>>,
                                                       email = <<>>});
                     {error, Reason} ->
@@ -140,8 +140,8 @@ read_request(Socket, Timeout) ->
         {ok, ?UPDATE} ->
             ?dbg_log(update),
             try
-                User = pki_util:read_user(Socket, Timeout),
-                case pki_serv:update(User) of
+                DbUser = pki_util:read_user(Socket, Timeout),
+                case pki_serv:update(DbUser) of
                     ok ->
                         ok = pki_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->

@@ -6,7 +6,7 @@
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("apptools/include/serv.hrl").
--include("pki_serv.hrl").
+-include_lib("pki/include/pki_serv.hrl").
 
 -record(state, {%% pid()
                 parent,
@@ -26,7 +26,7 @@ init(Parent, Dir) ->
     case filelib:is_dir(Dir) of
         true ->
             DbFilename = filename:join([Dir, <<"pki_db">>]),
-            KeyPosition = #user.name,
+            KeyPosition = #db_user.name,
             case dets:open_file({file_db, self()},
                                 [{file, ?b2l(DbFilename)}, {keypos, KeyPosition}]) of
                 {ok, FileDb} ->
@@ -50,8 +50,8 @@ stop() ->
 
 %% Exported: create
 
-create(User) ->
-    serv:call(?MODULE, {create, User}).
+create(DbUser) ->
+    serv:call(?MODULE, {create, DbUser}).
 
 %% Exported: read
 
@@ -59,14 +59,14 @@ read(Name) ->
     case ets:lookup(pki_db, Name)  of
         [] ->
             {error, no_such_user};
-        [User] ->
-            {ok, User}
+        [DbUser] ->
+            {ok, DbUser}
     end.
 
 %% Exported: update
 
-update(User) ->
-  serv:call(?MODULE, {update, User}).
+update(DbUser) ->
+  serv:call(?MODULE, {update, DbUser}).
 
 %% Exported: update
 
@@ -98,23 +98,23 @@ message_handler(#state{parent = Parent, db = Db, file_db = FileDb}) ->
     receive
         stop ->
             stop;
-        {call, From, {create, User}} ->
-            case ets:lookup(Db, User#user.name) of
+        {call, From, {create, DbUser}} ->
+            case ets:lookup(Db, DbUser#db_user.name) of
                 [_] ->
                     {reply, From, {error, user_already_exists}};
                 [] ->
-                    true = ets:insert(Db, User),
-                    ok = dets:insert(FileDb, User),
+                    true = ets:insert(Db, DbUser),
+                    ok = dets:insert(FileDb, DbUser),
                     {reply, From, ok}
             end;
-        {call, From, {update, #user{name = Name,
-                                    password = Password} = User}} ->
+        {call, From, {update, #db_user{name = Name,
+                                       password = Password} = DbUser}} ->
             case ets:lookup(Db, Name) of
                 [] ->
                     {reply, From, {error, no_such_user}};
-                [#user{password = Password}] ->
-                    true = ets:insert(Db, User),
-                    ok = dets:insert(FileDb, User),
+                [#db_user{password = Password}] ->
+                    true = ets:insert(Db, DbUser),
+                    ok = dets:insert(FileDb, DbUser),
                     {reply, From, ok};
                 [_] ->
                     {reply, From, {error, permission_denied}}
@@ -123,7 +123,7 @@ message_handler(#state{parent = Parent, db = Db, file_db = FileDb}) ->
             case ets:lookup(Db, Name) of
                 [] ->
                     {reply, From, {error, no_such_user}};
-                [#user{password = Password}] ->
+                [#db_user{password = Password}] ->
                     true = ets:delete(Db, Name),
                     ok = dets:delete(FileDb, Name),
                     {reply, From, ok};

@@ -2,7 +2,7 @@
 -export([read_integer/3, read_binary/3, read_user/2]).
 -export([write_integer/3, write_binary/3, write_user/2]).
 
--include("pki_serv.hrl").
+-include_lib("pki/include/pki_serv.hrl").
 
 %% Exported: read_integer
 
@@ -36,10 +36,10 @@ read_user(Transport, Timeout) ->
     Password = read_binary(1, Transport, Timeout),
     Email = read_binary(1, Transport, Timeout),
     PublicKey = read_binary(2, Transport, Timeout),
-    #user{name = Name,
-          password = Password,
-          email = Email,
-          public_key = belgamal:binary_to_public_key(PublicKey)}.
+    #db_user{name = Name,
+             password = Password,
+             email = Email,
+             public_key = belgamal:binary_to_public_key(PublicKey)}.
 
 %% Exported: write_integer
 
@@ -71,10 +71,10 @@ write_binary(Length, Transport, Binary) ->
 
 %% Exported: write_user
 
-write_user(Transport, #user{name = Name,
-                            password = Password,
-                            email = Email,
-                            public_key = PublicKey}) ->
+write_user(Transport, #db_user{name = Name,
+                               password = Password,
+                               email = Email,
+                               public_key = PublicKey}) ->
     ok = write_binary(1, Transport, Name),
     ok = write_binary(1, Transport, Password),
     ok = write_binary(1, Transport, Email),
