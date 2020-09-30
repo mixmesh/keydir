@@ -20,19 +20,19 @@
 
 %% Exported: create
 
-create(User) ->
-    create(?TIMEOUT, User, ?EXTRA_OPTIONS).
+create(PkiUser) ->
+    create(?TIMEOUT, PkiUser, ?EXTRA_OPTIONS).
 
-create(User, Options) ->
-    create(?TIMEOUT, User, Options).
+create(PkiUser, Options) ->
+    create(?TIMEOUT, PkiUser, Options).
 
-create(Timeout, User, Options) ->
-    ?dbg_log({create, Timeout, User}),
+create(Timeout, PkiUser, Options) ->
+    ?dbg_log({create, Timeout, PkiUser}),
     case connect([binary, {active, false}] ++ Options, Timeout) of
         {ok, Transport} ->
             try
                 ok = pki_util:write_integer(1, Transport, ?CREATE),
-                ok = pki_util:write_user(Transport, User),
+                ok = pki_util:write_user(Transport, PkiUser),
                 case pki_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
                         ok;
@@ -63,8 +63,8 @@ read(Timeout, Name) ->
                 ok = pki_util:write_binary(1, Transport, Name),
                 case pki_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
-                        User = pki_util:read_user(Transport, Timeout),
-                        {ok, User};
+                        PkiUser = pki_util:read_user(Transport, Timeout),
+                        {ok, PkiUser};
                     ?ERROR ->
                         Reason = pki_util:read_binary(2, Transport, Timeout),
                         {error, Reason}
@@ -80,16 +80,16 @@ read(Timeout, Name) ->
 
 %% Exported: update
 
-update(User) ->
-    update(?TIMEOUT, User).
+update(PkiUser) ->
+    update(?TIMEOUT, PkiUser).
 
-update(Timeout, User) ->
-    ?dbg_log({update, Timeout, User}),
+update(Timeout, PkiUser) ->
+    ?dbg_log({update, Timeout, PkiUser}),
     case connect([binary, {active, false}] ++ ?EXTRA_OPTIONS, Timeout)  of
         {ok, Transport} ->
             try
                 ok = pki_util:write_integer(1, Transport, ?UPDATE),
-                ok = pki_util:write_user(Transport, User),
+                ok = pki_util:write_user(Transport, PkiUser),
                 case pki_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
                         ok;

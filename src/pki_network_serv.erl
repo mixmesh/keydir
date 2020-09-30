@@ -99,8 +99,8 @@ read_request(Socket, Timeout) ->
         {ok, ?CREATE} ->
             ?dbg_log(create),
             try
-                DbUser = pki_util:read_user(Socket, Timeout),
-                case pki_serv:create(DbUser) of
+                PkiUser = pki_util:read_user(Socket, Timeout),
+                case pki_serv:create(PkiUser) of
                     ok ->
                         ok = pki_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->
@@ -120,9 +120,9 @@ read_request(Socket, Timeout) ->
             try
                 Name = pki_util:read_binary(1, Socket, Timeout),
                 case pki_serv:read(Name)  of
-                    {ok, DbUser} ->
+                    {ok, PkiUser} ->
                         ok = pki_util:write_integer(1, Socket, ?OK),
-                        pki_util:write_user(Socket, DbUser#db_user{
+                        pki_util:write_user(Socket, PkiUser#pki_user{
                                                       password = <<>>,
                                                       email = <<>>});
                     {error, Reason} ->
@@ -140,8 +140,8 @@ read_request(Socket, Timeout) ->
         {ok, ?UPDATE} ->
             ?dbg_log(update),
             try
-                DbUser = pki_util:read_user(Socket, Timeout),
-                case pki_serv:update(DbUser) of
+                PkiUser = pki_util:read_user(Socket, Timeout),
+                case pki_serv:update(PkiUser) of
                     ok ->
                         ok = pki_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->

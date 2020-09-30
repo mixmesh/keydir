@@ -3,7 +3,7 @@
 
 -include_lib("elgamal/include/elgamal.hrl").
 
--record(db_user,
+-record(pki_user,
         {name           :: binary(),
          password       :: binary(),
          email = <<"">> :: binary(),

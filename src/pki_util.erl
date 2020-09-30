@@ -36,10 +36,10 @@ read_user(Transport, Timeout) ->
     Password = read_binary(1, Transport, Timeout),
     Email = read_binary(1, Transport, Timeout),
     PublicKey = read_binary(2, Transport, Timeout),
-    #db_user{name = Name,
-             password = Password,
-             email = Email,
-             public_key = belgamal:binary_to_public_key(PublicKey)}.
+    #pki_user{name = Name,
+              password = Password,
+              email = Email,
+              public_key = belgamal:binary_to_public_key(PublicKey)}.
 
 %% Exported: write_integer
 
@@ -71,10 +71,10 @@ write_binary(Length, Transport, Binary) ->
 
 %% Exported: write_user
 
-write_user(Transport, #db_user{name = Name,
-                               password = Password,
-                               email = Email,
-                               public_key = PublicKey}) ->
+write_user(Transport, #pki_user{name = Name,
+                                password = Password,
+                                email = Email,
+                                public_key = PublicKey}) ->
     ok = write_binary(1, Transport, Name),
     ok = write_binary(1, Transport, Password),
     ok = write_binary(1, Transport, Email),
