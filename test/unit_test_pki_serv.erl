@@ -4,8 +4,6 @@
 -include("../include/pki_serv.hrl").
 
 start() ->
-    %% NOTE: For this to work "data-dir" must be set to "/tmp" in obscrete.conf
-    file:delete("/tmp/pki_db"),
     PkiUser = #pki_user{name = <<"foo">>, 
                         password = <<"baz">>,
                         public_key = <<"=">>},

@@ -32,7 +32,7 @@ Obscrete's configuration files as seen in ./obscrete/etc/*.conf.
 
 Unit tests can be run separately or all at once:
 ```
-$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-no-players.conf pki_serv
-$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-no-players.conf pki_network_serv
-$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-no-players.conf test/
+$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-pki-only.conf pki_serv
+$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-pki-only.conf pki_network_serv
+$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-pki-only.conf test/
 ```
