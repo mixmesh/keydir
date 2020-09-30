@@ -1,6 +1,9 @@
 # PKI server and client 
 
-A simple https://en.wikipedia.org/wiki/Public_key_infrastructure
+A simple Public Key Infrastructure (PKI) server as defined in https://en.wikipedia.org/wiki/Public_key_infrastructure
+
+The PKI server can be configured using a pki configuration directive
+Obscrete's configuration files as seen in ./obscrete/etc/*.conf.
 
 ## Files
 
@@ -18,7 +21,7 @@ A simple https://en.wikipedia.org/wiki/Public_key_infrastructure
   <dt>./src/pki_util.erl</dt>
   <dd>Common code shared by pki_network_serv and pki_network_client</dd>
   <dt>./src/pki_config_schema.erl</dt>
-  <dd>The PKI server has its own section in the Obscrete config file, e.g. see ./obscrete/etc/obscrete.conf. This schema is activated in Obscret's app file as seen in ./obscrete/ebin/obscrete.app.</dd>
+  <dd>The PKI server has its own section in the Obscrete config file, e.g. see ./obscrete/etc/*.conf. This schema is activated in Obscrete's application file as seen in ./obscrete/ebin/obscrete.app.</dd>
   <dt>./test/unit_test_pki_serv.erl</dt>
   <dd>Unit test for the pki_serv module</dd>
   <dt>./test/unit_test_belgamal.erl</dt>
