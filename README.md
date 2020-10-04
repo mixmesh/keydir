@@ -2,7 +2,7 @@
 
 A simple Public Key Infrastructure (PKI) server as defined in https://en.wikipedia.org/wiki/Public_key_infrastructure
 
-The PKI server can be configured using a PKI configuration directive
+The PKI server can be configured using a PKI configuration directive in
 Obscrete's configuration files as seen in ./obscrete/etc/*.conf.
 
 ## Files
