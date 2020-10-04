@@ -32,14 +32,11 @@ Obscrete's configuration files as seen in ./obscrete/etc/*.conf.
 
 `make runtest` runs all tests, i.e.
 
-```
-$ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf test/
-```
+`$ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf test/`
 
 Tests can be run individually as well:
 
 ```
 $ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf pki_serv
 $ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf pki_network_serv
-
 ```
