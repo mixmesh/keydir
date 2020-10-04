@@ -22,17 +22,24 @@ Obscrete's configuration files as seen in ./obscrete/etc/*.conf.
   <dd>Common code shared by pki_network_serv and pki_network_client</dd>
   <dt>./src/pki_config_schema.erl</dt>
   <dd>The PKI server has its own section in the Obscrete config file, e.g. see ./obscrete/etc/*.conf. This schema is activated in Obscrete's application file as seen in ./obscrete/ebin/obscrete.app.</dd>
-  <dt>./test/unit_test_pki_serv.erl</dt>
-  <dd>Unit test for the pki_serv module</dd>
-  <dt>./test/unit_test_belgamal.erl</dt>
-  <dd>Unit test for the pki_network_serv module</dd>
+  <dt>./test/test_pki_serv.erl</dt>
+  <dd>Test for the pki_serv module</dd>
+  <dt>./test/test_belgamal.erl</dt>
+  <dd>Test for the pki_network_serv module</dd>
 </dl>
 
-## Unit testing
+## Testing
 
-Unit tests can be run separately or all at once:
+`make runtest` runs all tests, i.e.
+
 ```
-$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-pki-only.conf pki_serv
-$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-pki-only.conf pki_network_serv
-$ ../obscrete/bin/unit_test --config ../obscrete/etc/obscrete-pki-only.conf test/
+$ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf test/
+```
+
+Tests can be run individually as well:
+
+```
+$ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf pki_serv
+$ ../obscrete/bin/run_test --config ../obscrete/etc/obscrete-pki-only.conf pki_network_serv
+
 ```

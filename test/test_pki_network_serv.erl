@@ -1,4 +1,4 @@
--module(unit_test_pki_network_serv).
+-module(test_pki_network_serv).
 -export([start/0]).
 
 -include("../include/pki_serv.hrl").
