@@ -1,5 +1,5 @@
 -module(pki_serv).
--export([start_link/1, start_link/2, stop/0, stop/1]).
+-export([start_link/2, stop/0, stop/1]).
 -export([create/1, create/2,
          read/1, read/2,
          update/1, update/2,
@@ -11,46 +11,43 @@
 -include_lib("apptools/include/serv.hrl").
 -include_lib("pki/include/pki_serv.hrl").
 
+-type pki_mode() :: global | local.
 -record(state, {parent           :: pid(),
                 db               :: ets:tid(),
                 file_db          :: dets:tab_name(),
-                top_level_server :: boolean()}).
+                mode             :: pki_mode()}).
 
 %% Exported: start_link
 
--spec start_link(none | serv:name(), binary()) ->
+-spec start_link(pki_mode(), binary()) ->
           serv:spawn_server_result() |
-          {error, {file_db_corrupt, any()}} | 
+          {error, {file_db_corrupt, any()}} |
           {error, invalid_dir}.
 
-start_link(Dir) ->
-    ?spawn_server_opts(fun(Parent) -> init(Parent, Dir, true) end,
+start_link(global, Dir) ->
+    ?spawn_server_opts(fun(Parent) -> init(Parent, Dir, global) end,
                        fun message_handler/1,
-                       #serv_options{name = ?MODULE}).
+                       #serv_options{name = ?MODULE});
+start_link(local, Dir) ->
+    ?spawn_server(fun(Parent) -> init(Parent, Dir, local) end,
+                  fun message_handler/1).
 
-start_link(none, Dir) ->
-    ?spawn_server(fun(Parent) -> init(Parent, Dir, false) end,
-                  fun message_handler/1);
-start_link(PkiServName, Dir) ->
-    ?spawn_server_opts(fun(Parent) -> init(Parent, Dir, false) end,
-                       fun message_handler/1,
-                       #serv_options{name = PkiServName}).
-
-init(Parent, Dir, TopLevelServer) ->
+init(Parent, Dir, Mode) ->
     case filelib:is_dir(Dir) of
         true ->
             DbFilename = filename:join([Dir, <<"pki_db">>]),
+            ok = pre_populate_simulated_db(Mode, DbFilename),
             KeyPosition = #pki_user.name,
             case dets:open_file(
                    {file_db, self()},
                    [{file, ?b2l(DbFilename)}, {keypos, KeyPosition}]) of
                 {ok, FileDb} ->
-                    if
-                        TopLevelServer ->
+                    case Mode of
+                        global ->
                             Db = ets:new(pki_db,
                                          [{keypos, KeyPosition}, named_table,
                                           {read_concurrency, true}, public]);
-                        true ->
+                        local ->
                             Db = ets:new(pki_db, [{keypos, KeyPosition}])
                     end,
                     true = ets:from_dets(Db, FileDb),
@@ -59,12 +56,36 @@ init(Parent, Dir, TopLevelServer) ->
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 file_db = FileDb,
-                                top_level_server = TopLevelServer}};
+                                mode = Mode}};
                 {error, Reason} ->
                     {error, {file_db_corrupt, Reason}}
             end;
         false ->
             {error, invalid_dir}
+    end.
+
+pre_populate_simulated_db(global, _DbFilename) ->
+    ok;
+pre_populate_simulated_db(local, DbFilename) ->
+    case config:lookup([simulator, enabled]) of
+        true ->
+            PrePopulatedDbFilename =
+                filename:join([code:priv_dir(simulator),
+                               config:lookup([simulator, 'data-set']),
+                               <<"pki_db">>]),
+            case file:copy(PrePopulatedDbFilename, DbFilename) of
+                {ok, _BytesCopied} ->
+                    ?daemon_tag_log(
+                       system, "Pre-populated PKI database from ~s",
+                       [PrePopulatedDbFilename]);
+                {error, Reason} ->
+                    ?daemon_tag_log(
+                       system, "WARNING: Could not pre-populate PKI database from ~s: ~s",
+                       [DbFilename, inet:format_error(Reason)])
+            end,
+            ok;
+        false ->
+            ok
     end.
 
 %% Exported: stop
@@ -92,7 +113,6 @@ create(PkiServName, PkiUser) ->
 -spec read(serv:name(), binary()) -> {ok, #pki_user{}} | {error, no_such_user}.
 
 read(Name) ->
-    %% NOTE: A top-level PKI server uses a public and named table
     case ets:lookup(pki_db, Name)  of
         [] ->
             {error, no_such_user};
@@ -156,6 +176,7 @@ strerror(Reason) ->
 message_handler(#state{parent = Parent, db = Db, file_db = FileDb}) ->
     receive
         {cast, stop} ->
+            dets:close(FileDb),
             stop;
         {call, From, {create, PkiUser}} ->
             case ets:lookup(Db, PkiUser#pki_user.name) of
@@ -199,6 +220,7 @@ message_handler(#state{parent = Parent, db = Db, file_db = FileDb}) ->
         {system, From, Request} ->
             {system, From, Request};
         {'EXIT', Parent, Reason} ->
+            dets:close(FileDb),
             exit(Reason);
         UnknownMessage ->
             ?error_log({unknown_message, UnknownMessage}),

@@ -1,10 +1,10 @@
 -module(test_pki_serv).
 -export([start/0]).
 
--include("../include/pki_serv.hrl").
+-include_lib("pki/include/pki_serv.hrl").
 
 start() ->
-    PkiUser = #pki_user{name = <<"foo">>, 
+    PkiUser = #pki_user{name = <<"foo">>,
                         password = <<"baz">>,
                         public_key = <<"=">>},
     ok = pki_serv:create(PkiUser),

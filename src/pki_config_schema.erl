@@ -4,7 +4,7 @@
 -include_lib("apptools/include/config_schema.hrl").
 
 get() ->
-    [{pki,
+    [{'global-pki-server',
       [{enabled,
         #json_type{
            name = bool,
