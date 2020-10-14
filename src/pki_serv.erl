@@ -67,7 +67,8 @@ init(Parent, Dir, Mode) ->
 pre_populate_simulated_db(global, _DbFilename) ->
     ok;
 pre_populate_simulated_db(local, DbFilename) ->
-    case config:lookup([simulator, enabled]) of
+    %% note must have a default of false, simulator may not always be present!
+    case config:lookup([simulator, enabled], false) of
         true ->
             PrePopulatedDbFilename =
                 filename:join([code:priv_dir(simulator),
