@@ -11,4 +11,4 @@
              pki_util]},
   {registered, [pki_serv, pki_sup]},
   {mod, {pki_app, []}},
-  {applications, [kernel, stdlib, sasl, obscrete]}]}.
+  {applications, [kernel, stdlib]}]}.
