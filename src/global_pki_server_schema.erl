@@ -1,4 +1,4 @@
--module(pki_config_schema).
+-module(global_pki_server_schema).
 -export([get/0]).
 
 -include_lib("apptools/include/config_schema.hrl").
