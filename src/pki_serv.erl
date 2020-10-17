@@ -12,16 +12,18 @@
 -include_lib("pki/include/pki_serv.hrl").
 
 -type pki_mode() :: global | local.
--record(state, {parent           :: pid(),
-                db               :: ets:tid(),
-                file_db          :: dets:tab_name(),
-                mode             :: pki_mode()}).
+-record(state, {parent :: pid(),
+                db :: ets:tid(),
+                shared_key :: binary(),
+                db_filename :: binary(),
+                fd :: file:io_device(),
+                mode :: pki_mode()}).
 
 %% Exported: start_link
 
 -spec start_link(pki_mode(), binary()) ->
           serv:spawn_server_result() |
-          {error, {file_db_corrupt, any()}} |
+          {error, {file_error, any()}} |
           {error, invalid_dir}.
 
 start_link(global, Dir) ->
@@ -35,13 +37,11 @@ start_link(local, Dir) ->
 init(Parent, Dir, Mode) ->
     case filelib:is_dir(Dir) of
         true ->
-            DbFilename = filename:join([Dir, <<"pki_db">>]),
-            ok = pre_populate_simulated_db(Mode, DbFilename),
-            KeyPosition = #pki_user.name,
-            case dets:open_file(
-                   {file_db, self()},
-                   [{file, ?b2l(DbFilename)}, {keypos, KeyPosition}]) of
-                {ok, FileDb} ->
+            DbFilename = filename:join([Dir, <<"pki.db">>]),
+            ok = copy_file(Mode, DbFilename),
+            case file:open(DbFilename, [read, write, binary]) of
+                {ok, Fd} ->
+                    KeyPosition = #pki_user.nym,
                     case Mode of
                         global ->
                             Db = ets:new(pki_db,
@@ -50,43 +50,25 @@ init(Parent, Dir, Mode) ->
                         local ->
                             Db = ets:new(pki_db, [{keypos, KeyPosition}])
                     end,
-                    true = ets:from_dets(Db, FileDb),
+                    [Pin, PinSalt] =
+                        config:lookup_children(
+                          [pin, 'pin-salt'], config:lookup([])),
+                    SharedKey = player_crypto:pin_to_key(Pin, PinSalt),
+                    ok = import_file(Fd, Db, SharedKey),
+                    ok = file:sync(Fd),
                     ?daemon_tag_log(system, "PKI server has been started: ~s",
                                     [Dir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
-                                file_db = FileDb,
+                                shared_key = SharedKey,
+                                db_filename = DbFilename,
+                                fd = Fd,
                                 mode = Mode}};
                 {error, Reason} ->
-                    {error, {file_db_corrupt, Reason}}
+                    {error, {file_error, Reason}}
             end;
         false ->
             {error, invalid_dir}
-    end.
-
-pre_populate_simulated_db(global, _DbFilename) ->
-    ok;
-pre_populate_simulated_db(local, DbFilename) ->
-    %% note must have a default of false, simulator may not always be present!
-    case config:lookup([simulator, enabled], false) of
-        true ->
-            PrePopulatedDbFilename =
-                filename:join([code:priv_dir(simulator),
-                               config:lookup([simulator, 'data-set']),
-                               <<"pki_db">>]),
-            case file:copy(PrePopulatedDbFilename, DbFilename) of
-                {ok, _BytesCopied} ->
-                    ?daemon_tag_log(
-                       system, "Pre-populated PKI database from ~s",
-                       [PrePopulatedDbFilename]);
-                {error, Reason} ->
-                    ?daemon_tag_log(
-                       system, "WARNING: Could not pre-populate PKI database from ~s: ~s",
-                       [DbFilename, inet:format_error(Reason)])
-            end,
-            ok;
-        false ->
-            ok
     end.
 
 %% Exported: stop
@@ -113,16 +95,16 @@ create(PkiServName, PkiUser) ->
 
 -spec read(serv:name(), binary()) -> {ok, #pki_user{}} | {error, no_such_user}.
 
-read(Name) ->
-    case ets:lookup(pki_db, Name)  of
+read(Nym) ->
+    case ets:lookup(pki_db, Nym)  of
         [] ->
             {error, no_such_user};
         [PkiUser] ->
             {ok, PkiUser}
     end.
 
-read(PkiServName, Name) ->
-    serv:call(PkiServName, {read, Name}).
+read(PkiServName, Nym) ->
+    serv:call(PkiServName, {read, Nym}).
 
 %% Exported: update
 
@@ -140,23 +122,23 @@ update(PkiServName, PkiUser) ->
 -spec delete(serv:name(), binary(), binary()) ->
           ok | {error, no_such_user | permission_denied}.
 
-delete(Name, Password) ->
-    delete(?MODULE, Name, Password).
+delete(Nym, Password) ->
+    delete(?MODULE, Nym, Password).
 
-delete(PkiServName, Name, Password) ->
-    serv:call(PkiServName, {delete, Name, Password}).
+delete(PkiServName, Nym, Password) ->
+    serv:call(PkiServName, {delete, Nym, Password}).
 
 %% Exported: strerror
 
--spec strerror({file_db_corrupt, any()} |
+-spec strerror({file_error, any()} |
                invalid_dir |
                user_already_exists |
                no_such_user |
                permission_denied |
                {unknown_error, any()}) -> binary().
 
-strerror({file_db_corrupt, FileDbReason}) ->
-    ?error_log({file_db_corrupt, FileDbReason}),
+strerror({file_error, Reason}) ->
+    ?error_log({file_error, Reason}),
     <<"PKI database is corrupt">>;
 strerror(invalid_dir) ->
     <<"PKI directory is invalid">>;
@@ -174,56 +156,152 @@ strerror(Reason) ->
 %% Message handler
 %%
 
-message_handler(#state{parent = Parent, db = Db, file_db = FileDb}) ->
+message_handler(#state{parent = Parent,
+                       db = Db,
+                       shared_key = SharedKey,
+                       db_filename = DbFilename,
+                       fd = Fd} = State) ->
     receive
         {cast, stop} ->
-            dets:close(FileDb),
+            file:close(Fd),
             stop;
         {call, From, {create, PkiUser}} ->
-            case ets:lookup(Db, PkiUser#pki_user.name) of
+            case ets:lookup(Db, PkiUser#pki_user.nym) of
                 [_] ->
                     {reply, From, {error, user_already_exists}};
                 [] ->
                     true = ets:insert(Db, PkiUser),
-                    ok = dets:insert(FileDb, PkiUser),
+                    ok = file:write(Fd, pack(PkiUser, SharedKey)),
+                    ok = file:sync(Fd),
                     {reply, From, ok}
             end;
-        {call, From, {read, Name}} ->
-            case ets:lookup(Db, Name)  of
+        {call, From, {read, Nym}} ->
+            case ets:lookup(Db, Nym)  of
                 [] ->
                     {reply, From, {error, no_such_user}};
                 [PkiUser] ->
                     {reply, From, {ok, PkiUser}}
             end;
-        {call, From, {update, #pki_user{name = Name,
+        {call, From, {update, #pki_user{nym = Nym,
                                        password = Password} = PkiUser}} ->
-            case ets:lookup(Db, Name) of
+            case ets:lookup(Db, Nym) of
                 [] ->
                     {reply, From, {error, no_such_user}};
                 [#pki_user{password = Password}] ->
                     true = ets:insert(Db, PkiUser),
-                    ok = dets:insert(FileDb, PkiUser),
-                    {reply, From, ok};
+                    file:close(Fd),
+                    {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
+                    {reply, From, ok, State#state{fd = NewFd}};
                 [_] ->
                     {reply, From, {error, permission_denied}}
             end;
-        {call, From, {delete, Name, Password}} ->
-            case ets:lookup(Db, Name) of
+        {call, From, {delete, Nym, Password}} ->
+            case ets:lookup(Db, Nym) of
                 [] ->
                     {reply, From, {error, no_such_user}};
                 [#pki_user{password = Password}] ->
-                    true = ets:delete(Db, Name),
-                    ok = dets:delete(FileDb, Name),
-                    {reply, From, ok};
+                    true = ets:delete(Db, Nym),
+                    file:close(Fd),
+                    {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
+                    {reply, From, ok, State#state{fd = NewFd}};
                 [_] ->
                     {reply, From, {error, permission_denied}}
             end;
         {system, From, Request} ->
             {system, From, Request};
         {'EXIT', Parent, Reason} ->
-            dets:close(FileDb),
+            file:close(Fd),
             exit(Reason);
         UnknownMessage ->
             ?error_log({unknown_message, UnknownMessage}),
             noreply
     end.
+
+copy_file(global, _DbFilename) ->
+    ok;
+copy_file(local, DbFilename) ->
+    %% note must have a default of false, simulator may not always be present!
+    case config:lookup([simulator, enabled], false) of
+        true ->
+            PrePopulatedDbFilename =
+                filename:join([code:priv_dir(simulator),
+                               config:lookup([simulator, 'data-set']),
+                               <<"pki.db">>]),
+            case file:copy(PrePopulatedDbFilename, DbFilename) of
+                {ok, _BytesCopied} ->
+                    ?daemon_tag_log(system, "Copied PKI database file from ~s",
+                                    [PrePopulatedDbFilename]);
+                {error, Reason} ->
+                    ?daemon_tag_log(
+                       system,
+                       "WARNING: Could not copy PKI database file from ~s: ~s",
+                       [DbFilename, inet:format_error(Reason)])
+            end,
+            ok;
+        false ->
+            ok
+    end.
+
+pack(#pki_user{nym = Nym,
+               password = Password,
+               email = Email,
+               public_key = PublicKey}, SharedKey) ->
+    Nonce = enacl:randombytes(enacl:secretbox_NONCEBYTES()),
+    NonceSize = size(Nonce),
+    NymSize = size(Nym),
+    PasswordSize = size(Password),
+    EmailSize = size(Email),
+    PublicKeyBin = elgamal:public_key_to_binary(PublicKey),
+    PublicKeyBinSize = size(PublicKeyBin),
+    Entry =
+        <<NymSize:16/unsigned-integer,
+          Nym/binary,
+          PasswordSize:16/unsigned-integer,
+          Password/binary,
+          EmailSize:16/unsigned-integer,
+          Email/binary,
+          PublicKeyBinSize:16/unsigned-integer,
+          PublicKeyBin/binary>>,
+    EncryptedEntry = enacl:secretbox(Entry, Nonce, SharedKey),
+    EncryptedEntrySize = size(EncryptedEntry),
+    <<NonceSize:16/unsigned-integer,
+      Nonce/binary,
+      EncryptedEntrySize:16/unsigned-integer,
+      EncryptedEntry/binary>>.
+
+import_file(Fd, Db, SharedKey) ->
+    case file:read(Fd, 2) of
+        eof ->
+            ok;
+        {ok, <<NonceSize:16/unsigned-integer>>} ->
+            {ok, Nonce} = file:read(Fd, NonceSize),
+            {ok, <<EncryptedEntrySize:16/unsigned-integer>>} = file:read(Fd, 2),
+            {ok, EncryptedEntry} = file:read(Fd, EncryptedEntrySize),
+            {ok, <<NymSize:16/unsigned-integer,
+                   Nym:NymSize/binary,
+                   PasswordSize:16/unsigned-integer,
+                   Password:PasswordSize/binary,
+                   EmailSize:16/unsigned-integer,
+                   Email:EmailSize/binary,
+                   PublicKeySize:16/unsigned-integer,
+                   PublicKey:PublicKeySize/binary>>} =
+                enacl:secretbox_open(EncryptedEntry, Nonce, SharedKey),
+            PkiUser =
+                #pki_user{nym = Nym,
+                          password = Password,
+                          email = Email,
+                          public_key = elgamal:binary_to_public_key(PublicKey)},
+            true = ets:insert(Db, PkiUser),
+            import_file(Fd, Db, SharedKey);
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+export_file(Db, DbFilename, SharedKey) ->
+    _ = file:delete(DbFilename),
+    {ok, Fd} = file:open(DbFilename, [read, write, binary]),
+    ok = ets:foldl(fun(PkiUser, ok) ->
+                           file:write(Fd, pack(PkiUser, SharedKey))
+                   end, ok, Db),
+    ok = file:sync(Fd),
+    {ok, Fd}.

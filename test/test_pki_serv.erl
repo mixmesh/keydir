@@ -4,9 +4,9 @@
 -include_lib("pki/include/pki_serv.hrl").
 
 start() ->
-    PkiUser = #pki_user{name = <<"foo">>,
+    PkiUser = #pki_user{nym = <<"foo">>,
                         password = <<"baz">>,
-                        public_key = <<"=">>},
+                        public_key = #pk{nym = <<"foo">>, h = 0}},
     ok = pki_serv:create(PkiUser),
     {error, user_already_exists} = pki_serv:create(PkiUser),
     {error, no_such_user} = pki_serv:read(<<"fubar">>),

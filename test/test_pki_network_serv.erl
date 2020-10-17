@@ -6,10 +6,10 @@
 
 start() ->
     PkiUser = #pki_user{
-                 name = <<"foo">>,
+                 nym = <<"foo">>,
                  password = <<"baz">>,
                  email = <<"mrx@gmail.com">>,
-                 public_key = belgamal:binary_to_public_key(<<"=">>)},
+                 public_key = #pk{nym = <<"foo">>, h = 0}},
     Options = #pki_network_client_options{
                  pki_access = {tcp_only, {{127, 0, 0, 1}, 11112}}},
     ok = pki_network_client:create(PkiUser, Options, infinity),
