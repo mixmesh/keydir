@@ -4,9 +4,9 @@
 -include_lib("elgamal/include/elgamal.hrl").
 
 -record(pki_user,
-        {nym            :: binary(),
-         password       :: binary(),
+        {nym :: binary(),
+         password :: binary(),
          email = <<"">> :: binary(),
-         public_key     :: #pk{}}).
+         public_key :: #pk{}}).
 
 -endif.
