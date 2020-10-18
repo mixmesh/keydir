@@ -55,7 +55,6 @@ init(Parent, Dir, Mode) ->
                           [pin, 'pin-salt'], config:lookup([])),
                     SharedKey = player_crypto:pin_to_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
-                    ok = file:sync(Fd),
                     ?daemon_tag_log(system, "PKI server has been started: ~s",
                                     [Dir]),
                     {ok, #state{parent = Parent,

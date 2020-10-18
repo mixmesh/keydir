@@ -6,14 +6,10 @@
 -include_lib("pki/include/pki_serv.hrl").
 -include("pki_network.hrl").
 
--record(state, {%% pid()
-                parent,
-                %% integer()
-                timeout,
-                %% inet:socket()
-                listen_socket,
-                %% [pid()]
-                acceptors}).
+-record(state, {parent :: pid(),
+                timeout :: timeout(),
+                listen_socket :: inet:socket(),
+                acceptors :: [pid()]}).
 
 %% Exported: start_link
 
