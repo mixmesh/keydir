@@ -6,7 +6,7 @@
          delete/2, delete/3]).
 -export([strerror/1]).
 
--include_lib("apptools/include/log.hrl").
+-include_lib("obscrete/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("apptools/include/serv.hrl").
 -include_lib("pki/include/pki_serv.hrl").
@@ -55,8 +55,8 @@ init(Parent, Dir, Mode) ->
                           [pin, 'pin-salt'], config:lookup([])),
                     SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
-                    ?daemon_tag_log(system, "PKI server has been started: ~s",
-                                    [Dir]),
+                    ?daemon_log_tag_fmt(
+                       system, "PKI server has been started: ~s", [Dir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 shared_key = SharedKey,
@@ -228,10 +228,11 @@ copy_file(local, DbFilename) ->
                                <<"pki.db">>]),
             case file:copy(PrePopulatedDbFilename, DbFilename) of
                 {ok, _BytesCopied} ->
-                    ?daemon_tag_log(system, "Copied PKI database file from ~s",
-                                    [PrePopulatedDbFilename]);
+                    ?daemon_log_tag_fmt(
+                       system, "Copied PKI database file from ~s",
+                       [PrePopulatedDbFilename]);
                 {error, Reason} ->
-                    ?daemon_tag_log(
+                    ?daemon_log_tag_fmt(
                        system,
                        "WARNING: Could not copy PKI database file from ~s: ~s",
                        [DbFilename, inet:format_error(Reason)])

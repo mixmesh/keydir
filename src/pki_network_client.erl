@@ -4,7 +4,7 @@
 -export([recv/3, send/2]).
 -export_type([pki_access/0]).
 
--include_lib("apptools/include/log.hrl").
+-include_lib("obscrete/include/log.hrl").
 -include_lib("pki/include/pki_serv.hrl").
 -include_lib("pki/include/pki_network_client.hrl").
 -include("pki_network.hrl").
@@ -203,7 +203,7 @@ connect(Timeout, Options) ->
                                 {ok, Socket} ->
                                     NewTransport = Socket,
                                     put(pki_transport, NewTransport),
-                                    ?daemon_tag_log(
+                                    ?daemon_log_tag_fmt(
                                        system,
                                        "WARNING: Falls back to TCP access",
                                        []),

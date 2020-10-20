@@ -1,7 +1,7 @@
 -module(pki_network_serv).
 -export([start_link/3, stop/1]).
 
--include_lib("apptools/include/log.hrl").
+-include_lib("obscrete/include/log.hrl").
 -include_lib("apptools/include/serv.hrl").
 -include_lib("pki/include/pki_serv.hrl").
 -include("pki_network.hrl").
@@ -34,7 +34,7 @@ init(Parent, Address, Port, Timeout) ->
         gen_tcp:listen(Port, [{active, false}, {ip, Address}, {reuseaddr, true},
                               binary]),
     self() ! accepted,
-    ?daemon_tag_log(system, "PKI TCP server has been started", []),
+    ?daemon_log_tag_fmt(system, "PKI TCP server has been started", []),
     {ok, #state{parent = Parent,
                 timeout = Timeout,
                 listen_socket = ListenSocket,
