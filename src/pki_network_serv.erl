@@ -1,7 +1,7 @@
 -module(pki_network_serv).
 -export([start_link/3, stop/1]).
 
--include_lib("obscrete/include/log.hrl").
+-include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/serv.hrl").
 -include_lib("pki/include/pki_serv.hrl").
 -include("pki_network.hrl").

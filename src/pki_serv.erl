@@ -6,7 +6,7 @@
          delete/2, delete/3]).
 -export([strerror/1]).
 
--include_lib("obscrete/include/log.hrl").
+-include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("apptools/include/serv.hrl").
 -include_lib("pki/include/pki_serv.hrl").

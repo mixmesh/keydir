@@ -4,7 +4,7 @@
 -export([recv/3, send/2]).
 -export_type([pki_access/0]).
 
--include_lib("obscrete/include/log.hrl").
+-include_lib("apptools/include/log.hrl").
 -include_lib("pki/include/pki_serv.hrl").
 -include_lib("pki/include/pki_network_client.hrl").
 -include("pki_network.hrl").
