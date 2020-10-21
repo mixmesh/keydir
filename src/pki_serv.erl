@@ -52,7 +52,7 @@ init(Parent, Dir, Mode) ->
                     end,
                     [Pin, PinSalt] =
                         config:lookup_children(
-                          [pin, 'pin-salt'], config:lookup([])),
+                          [pin, 'pin-salt'], config:lookup(obscrete, [system])),
                     SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
                     ?daemon_log_tag_fmt(
