@@ -2,7 +2,7 @@
 -export([read_integer/3, read_binary/3, read_user/2]).
 -export([write_integer/3, write_binary/3, write_user/2]).
 
--include_lib("pki/include/pki_serv.hrl").
+-include("../include/pki_serv.hrl").
 
 %% Exported: read_integer
 

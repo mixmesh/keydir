@@ -1,7 +1,7 @@
 -module(test_pki_serv).
 -export([start/0]).
 
--include_lib("pki/include/pki_serv.hrl").
+-include("../include/pki_serv.hrl").
 
 start() ->
     PkiUser = #pki_user{nym = <<"foo">>,

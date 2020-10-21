@@ -5,8 +5,8 @@
 -export_type([pki_access/0]).
 
 -include_lib("apptools/include/log.hrl").
--include_lib("pki/include/pki_serv.hrl").
--include_lib("pki/include/pki_network_client.hrl").
+-include("../include/pki_serv.hrl").
+-include("../include/pki_network_client.hrl").
 -include("pki_network.hrl").
 
 -type pki_access() :: {tor_only,

@@ -9,7 +9,7 @@
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("apptools/include/serv.hrl").
--include_lib("pki/include/pki_serv.hrl").
+-include("../include/pki_serv.hrl").
 
 -type pki_mode() :: global | local.
 -record(state, {parent :: pid(),

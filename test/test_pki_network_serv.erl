@@ -1,8 +1,8 @@
 -module(test_pki_network_serv).
 -export([start/0]).
 
--include_lib("pki/include/pki_network_client.hrl").
--include_lib("pki/include/pki_serv.hrl").
+-include("../include/pki_network_client.hrl").
+-include("../include/pki_serv.hrl").
 
 start() ->
     PkiUser = #pki_user{
