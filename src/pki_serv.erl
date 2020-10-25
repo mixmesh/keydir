@@ -206,6 +206,8 @@ message_handler(#state{parent = Parent,
                 [_] ->
                     {reply, From, {error, permission_denied}}
             end;
+        {neighbour_workers, _NeighbourWorkers} ->
+            noreply;
         {system, From, Request} ->
             {system, From, Request};
         {'EXIT', Parent, Reason} ->
