@@ -18,7 +18,7 @@ init([]) ->
                                        config:lookup(['global-pki-server'])),
             PkiServSpec =
                 #{id => pki_serv,
-                  start => {pki_serv, start_link, [global, DataDir]}},
+                  start => {pki_serv, start_link, [DataDir]}},
             PkiNetworkServSpec =
                 #{id => pki_network_serv,
                   start => {pki_network_serv, start_link,

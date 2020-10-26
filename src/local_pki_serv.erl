@@ -1,12 +1,12 @@
--module(pki_serv).
--export([start_link/1, stop/0]).
--export([create/1, read/1, update/1, delete/2, list/2]).
+-module(local_pki_serv).
+-export([start_link/1, stop/1]).
+-export([create/2, read/2, update/2, delete/2, list/3]).
 -export([strerror/1]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("apptools/include/serv.hrl").
--include("../include/pki_serv.hrl").
+-include_lib("elgamal/include/elgamal.hrl").
 
 -record(state, {parent :: pid(),
                 db :: ets:tid(),
@@ -22,9 +22,8 @@
           {error, invalid_dir}.
 
 start_link(Dir) ->
-    ?spawn_server_opts(fun(Parent) -> init(Parent, Dir) end,
-                       fun message_handler/1,
-                       #serv_options{name = ?MODULE}).
+    ?spawn_server(fun(Parent) -> init(Parent, Dir) end,
+                  fun message_handler/1).
 
 init(Parent, Dir) ->
     case filelib:is_dir(Dir) of
@@ -33,18 +32,14 @@ init(Parent, Dir) ->
             ok = copy_file(DbFilename),
             case file:open(DbFilename, [read, write, binary]) of
                 {ok, Fd} ->
-                    KeyPosition = #pki_user.nym,
-                    Db = ets:new(pki_db,
-                                 [ordered_set, {keypos, KeyPosition},
-                                  public, named_table,
-                                  {read_concurrency, true}]),
+                    Db = ets:new(pki_db, [ordered_set, {keypos, #pk.nym}]),
                     [Pin, PinSalt] =
                         config:lookup_children(
                           [pin, 'pin-salt'], config:lookup([system])),
                     SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
                     ?daemon_log_tag_fmt(
-                       system, "PKI server has been started: ~s", [Dir]),
+                       system, "Local PKI server has been started: ~s", [Dir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 shared_key = SharedKey,
@@ -59,60 +54,56 @@ init(Parent, Dir) ->
 
 %% Exported: stop
 
--spec stop() -> ok.
+-spec stop(serv:name()) -> ok.
 
-stop() ->
-    serv:cast(?MODULE, stop).
+stop(PkiServName) ->
+    serv:cast(PkiServName, stop).
 
 %% Exported: create
 
--spec create(#pki_user{}) -> ok | {error, user_already_exists}.
+-spec create(serv:name(), #pk{}) -> ok | {error, key_already_exists}.
 
-create(PkiUser) ->
-    serv:call(?MODULE, {create, PkiUser}).
+create(PkiServName, PublicKey) ->
+    serv:call(PkiServName, {create, PublicKey}).
 
 %% Exported: read
 
--spec read(binary()) -> {ok, #pki_user{}} | {error, no_such_user}.
+-spec read(serv:name(), binary()) -> {ok, #pk{}} | {error, no_such_key}.
 
-read(Nym) ->
-    case ets:lookup(pki_db, Nym)  of
-        [] ->
-            {error, no_such_user};
-        [PkiUser] ->
-            {ok, PkiUser}
-    end.
+read(PkiServName, Nym) ->
+    serv:call(PkiServName, {read, Nym}).
 
 %% Exported: update
 
--spec update(#pki_user{}) ->
-          ok | {error, no_such_user | permission_denied}.
+-spec update(serv:name(), #pk{}) ->
+          ok | {error, no_such_key | permission_denied}.
 
-update(PkiUser) ->
-    serv:call(?MODULE, {update, PkiUser}).
+update(PkiServName, PublicKey) ->
+    serv:call(PkiServName, {update, PublicKey}).
 
 %% Exported: delete
 
--spec delete(binary(), binary()) ->
-          ok | {error, no_such_user | permission_denied}.
+-spec delete(serv:name(), binary()) ->
+          ok | {error, no_such_key | permission_denied}.
 
-delete(Nym, Password) ->
-    serv:call(?MODULE, {delete, Nym, Password}).
+delete(PkiServName, Nym) ->
+    serv:call(PkiServName, {delete, Nym}).
 
 %% Exported: list
 
--spec list({substring, binary()} | all, non_neg_integer()) ->
-          {ok, [#pki_user{}]}.
+-spec list(serv:name(), {substring, binary()} | all,
+           non_neg_integer()) ->
+          {ok, [#pk{}]}.
 
-list(NymPattern, N) ->
-    serv:call(?MODULE, {list, NymPattern, N}).
+list(PkiServName, NymPattern, N) ->
+    serv:call(PkiServName, {list, NymPattern, N}).
 
 %% Exported: strerror
 
 -spec strerror({file_error, any()} |
                invalid_dir |
-               user_already_exists |
-               no_such_user |
+               key_already_exists |
+               no_such_key |
                permission_denied |
                {unknown_error, any()}) -> binary().
 
@@ -121,10 +112,10 @@ strerror({file_error, Reason}) ->
     <<"PKI database is corrupt">>;
 strerror(invalid_dir) ->
     <<"PKI directory is invalid">>;
-strerror(user_already_exists) ->
-    <<"User already exists">>;
-strerror(no_such_user) ->
-    <<"No such user">>;
+strerror(key_already_exists) ->
+    <<"Key already exists">>;
+strerror(no_such_key) ->
+    <<"No such key">>;
 strerror(permission_denied) ->
     <<"Permission denied">>;
 strerror(Reason) ->
@@ -144,50 +135,45 @@ message_handler(#state{parent = Parent,
         {cast, stop} ->
             file:close(Fd),
             stop;
-        {call, From, {create, PkiUser}} ->
-            case ets:lookup(Db, PkiUser#pki_user.nym) of
+        {call, From, {create, PublicKey}} ->
+            case ets:lookup(Db, PublicKey#pk.nym) of
                 [_] ->
-                    {reply, From, {error, user_already_exists}};
+                    {reply, From, {error, key_already_exists}};
                 [] ->
-                    true = ets:insert(Db, PkiUser),
-                    ok = file:write(Fd, pack(PkiUser, SharedKey)),
+                    true = ets:insert(Db, PublicKey),
+                    ok = file:write(Fd, pack(PublicKey, SharedKey)),
                     ok = file:sync(Fd),
                     {reply, From, ok}
             end;
         {call, From, {read, Nym}} ->
             case ets:lookup(Db, Nym)  of
                 [] ->
-                    {reply, From, {error, no_such_user}};
-                [PkiUser] ->
-                    {reply, From, {ok, PkiUser#pki_user{password = <<>>}}}
+                    {reply, From, {error, no_such_key}};
+                [PublicKey] ->
+                    {reply, From, {ok, PublicKey}}
             end;
-        {call, From, {update, #pki_user{nym = Nym,
-                                        password = Password} = PkiUser}} ->
+        {call, From, {update, #pk{nym = Nym} = PublicKey}} ->
             case ets:lookup(Db, Nym) of
                 [] ->
-                    {reply, From, {error, no_such_user}};
-                [#pki_user{password = Password}] ->
-                    true = ets:insert(Db, PkiUser),
+                    {reply, From, {error, no_such_key}};
+                [_] ->
+                    true = ets:insert(Db, PublicKey),
                     file:close(Fd),
                     {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
-                    {reply, From, ok, State#state{fd = NewFd}};
-                [_] ->
-                    {reply, From, {error, permission_denied}}
+                    {reply, From, ok, State#state{fd = NewFd}}
             end;
-        {call, From, {delete, Nym, Password}} ->
+        {call, From, {delete, Nym}} ->
             case ets:lookup(Db, Nym) of
                 [] ->
-                    {reply, From, {error, no_such_user}};
-                [#pki_user{password = Password}] ->
+                    {reply, From, {error, no_such_key}};
+                [_] ->
                     true = ets:delete(Db, Nym),
                     file:close(Fd),
                     {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
-                    {reply, From, ok, State#state{fd = NewFd}};
-                [_] ->
-                    {reply, From, {error, permission_denied}}
+                    {reply, From, ok, State#state{fd = NewFd}}
             end;
         {call, From, {list, NymPattern, N}} ->
-            {reply, From, {ok, list_users(Db, NymPattern, N, ets:first(Db))}};
+            {reply, From, {ok, list_keys(Db, NymPattern, N, ets:first(Db))}};
         {neighbour_workers, _NeighbourWorkers} ->
             noreply;
         {system, From, Request} ->
@@ -201,10 +187,13 @@ message_handler(#state{parent = Parent,
     end.
 
 copy_file(DbFilename) ->
-    PrePopulatedDbFilename =
-        filename:join([code:priv_dir(pki), <<"pki.db">>]),
-    case filelib:is_regular(PrePopulatedDbFilename) of
+    %% note must have a default of false, simulator may not always be present!
+    case config:lookup([simulator, enabled], false) of
         true ->
+            PrePopulatedDbFilename =
+                filename:join([code:priv_dir(simulator),
+                               config:lookup([simulator, 'data-set']),
+                               <<"pki.db">>]),
             case file:copy(PrePopulatedDbFilename, DbFilename) of
                 {ok, _BytesCopied} ->
                     ?daemon_log_tag_fmt(
@@ -222,18 +211,17 @@ copy_file(DbFilename) ->
     end.
 
 %% BEWARE: The packing format is interchangble/compatible with the
-%% packing format used in local_pki_serv.erl. That way they can share
-%% pki.db files. Very handy. If you change pack/1 you must do the same
-%% in local_pki_serv.erl.
+%% packing format used in pki_serv.erl. That way they can share pki.db
+%% files. Very handy. If you change pack/1 you must do the same in
+%% pki_serv.erl.
 
-pack(#pki_user{nym = Nym,
-               password = Password,
-               email = Email,
-               public_key = PublicKey}, SharedKey) ->
+pack(#pk{nym = Nym} = PublicKey, SharedKey) ->
     Nonce = enacl:randombytes(enacl:secretbox_NONCEBYTES()),
     NonceSize = size(Nonce),
     NymSize = size(Nym),
+    Password = <<>>,
     PasswordSize = size(Password),
+    Email = <<>>,
     EmailSize = size(Email),
     PublicKeyBin = elgamal:public_key_to_binary(PublicKey),
     PublicKeyBinSize = size(PublicKeyBin),
@@ -262,20 +250,16 @@ import_file(Fd, Db, SharedKey) ->
             {ok, <<EncryptedEntrySize:16/unsigned-integer>>} = file:read(Fd, 2),
             {ok, EncryptedEntry} = file:read(Fd, EncryptedEntrySize),
             {ok, <<NymSize:16/unsigned-integer,
-                   Nym:NymSize/binary,
+                   _Nym:NymSize/binary,
                    PasswordSize:16/unsigned-integer,
-                   Password:PasswordSize/binary,
+                   _Password:PasswordSize/binary,
                    EmailSize:16/unsigned-integer,
-                   Email:EmailSize/binary,
+                   _Email:EmailSize/binary,
                    PublicKeySize:16/unsigned-integer,
-                   PublicKey:PublicKeySize/binary>>} =
+                   PublicKeyBin:PublicKeySize/binary>>} =
                 enacl:secretbox_open(EncryptedEntry, Nonce, SharedKey),
-            PkiUser =
-                #pki_user{nym = Nym,
-                          password = Password,
-                          email = Email,
-                          public_key = elgamal:binary_to_public_key(PublicKey)},
-            true = ets:insert(Db, PkiUser),
+            PublicKey = elgamal:binary_to_public_key(PublicKeyBin),
+            true = ets:insert(Db, PublicKey),
             import_file(Fd, Db, SharedKey);
         {error, Reason} ->
             {error, Reason}
@@ -284,24 +268,24 @@ import_file(Fd, Db, SharedKey) ->
 export_file(Db, DbFilename, SharedKey) ->
     _ = file:delete(DbFilename),
     {ok, Fd} = file:open(DbFilename, [read, write, binary]),
-    ok = ets:foldl(fun(PkiUser, ok) ->
-                           file:write(Fd, pack(PkiUser, SharedKey))
+    ok = ets:foldl(fun(PublicKey, ok) ->
+                           file:write(Fd, pack(PublicKey, SharedKey))
                    end, ok, Db),
     ok = file:sync(Fd),
     {ok, Fd}.
 
-list_users(_Db, _NymPattern, 0, _Nym) ->
+list_keys(_Db, _NymPattern, 0, _Nym) ->
     [];
-list_users(_Db, _NymPattern, _N, '$end_of_table') ->
+list_keys(_Db, _NymPattern, _N, '$end_of_table') ->
     [];
-list_users(Db, all, N, Nym) ->
-    [PkiUser] = ets:lookup(Db, Nym),
-    [PkiUser|list_users(Db, all, N - 1, ets:next(Db, Nym))];
-list_users(Db, {substring, SubStringNym} = NymPattern, N, Nym) ->
+list_keys(Db, all, N, Nym) ->
+    [PublicKey] = ets:lookup(Db, Nym),
+    [PublicKey|list_keys(Db, all, N - 1, ets:next(Db, Nym))];
+list_keys(Db, {substring, SubStringNym} = NymPattern, N, Nym) ->
     case string:find(Nym, SubStringNym, leading) of
         nomatch ->
-            list_users(Db, NymPattern, N, ets:next(Db, Nym));
+            list_keys(Db, NymPattern, N, ets:next(Db, Nym));
         _ ->
-            [PkiUser] = ets:lookup(Db, Nym),
-            [PkiUser|list_users(Db, NymPattern, N - 1, ets:next(Db, Nym))]
+            [PublicKey] = ets:lookup(Db, Nym),
+            [PublicKey|list_keys(Db, NymPattern, N - 1, ets:next(Db, Nym))]
     end.
