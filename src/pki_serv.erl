@@ -188,8 +188,6 @@ message_handler(#state{parent = Parent,
             end;
         {call, From, {list, NymPattern, N}} ->
             {reply, From, {ok, list_users(Db, NymPattern, N, ets:first(Db))}};
-        {neighbour_workers, _NeighbourWorkers} ->
-            noreply;
         {system, From, Request} ->
             {system, From, Request};
         {'EXIT', Parent, Reason} ->
