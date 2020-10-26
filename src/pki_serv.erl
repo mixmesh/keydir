@@ -3,7 +3,8 @@
 -export([create/1, create/2,
          read/1, read/2,
          update/1, update/2,
-         delete/2, delete/3]).
+         delete/2, delete/3,
+         list/2, list/3]).
 -export([strerror/1]).
 
 -include_lib("apptools/include/log.hrl").
@@ -45,10 +46,14 @@ init(Parent, Dir, Mode) ->
                     case Mode of
                         global ->
                             Db = ets:new(pki_db,
-                                         [{keypos, KeyPosition}, named_table,
-                                          {read_concurrency, true}, public]);
+                                         [ordered_set,
+                                          {keypos, KeyPosition},
+                                          public,
+                                          named_table,
+                                          {read_concurrency, true}]);
                         local ->
-                            Db = ets:new(pki_db, [{keypos, KeyPosition}])
+                            Db = ets:new(pki_db, [ordered_set,
+                                                  {keypos, KeyPosition}])
                     end,
                     [Pin, PinSalt] =
                         config:lookup_children(
@@ -116,7 +121,7 @@ update(PkiUser) ->
 update(PkiServName, PkiUser) ->
     serv:call(PkiServName, {update, PkiUser}).
 
-%% Exported: update
+%% Exported: delete
 
 -spec delete(serv:name(), binary(), binary()) ->
           ok | {error, no_such_user | permission_denied}.
@@ -126,6 +131,18 @@ delete(Nym, Password) ->
 
 delete(PkiServName, Nym, Password) ->
     serv:call(PkiServName, {delete, Nym, Password}).
+
+%% Exported: list
+
+-spec list(serv:name(), {substring, binary()} | all,
+           non_neg_integer()) ->
+          {ok, [#pki_user{}]}.
+
+list(NymPattern, N) ->
+    list(?MODULE, NymPattern, N).
+
+list(PkiServName, NymPattern, N) ->
+    serv:call(PkiServName, {list, NymPattern, N}).
 
 %% Exported: strerror
 
@@ -179,10 +196,10 @@ message_handler(#state{parent = Parent,
                 [] ->
                     {reply, From, {error, no_such_user}};
                 [PkiUser] ->
-                    {reply, From, {ok, PkiUser}}
+                    {reply, From, {ok, PkiUser#pki_user{password = <<>>}}}
             end;
         {call, From, {update, #pki_user{nym = Nym,
-                                       password = Password} = PkiUser}} ->
+                                        password = Password} = PkiUser}} ->
             case ets:lookup(Db, Nym) of
                 [] ->
                     {reply, From, {error, no_such_user}};
@@ -206,6 +223,8 @@ message_handler(#state{parent = Parent,
                 [_] ->
                     {reply, From, {error, permission_denied}}
             end;
+        {call, From, {list, NymPattern, N}} ->
+            {reply, From, {ok, list_users(Db, NymPattern, N, ets:first(Db))}};
         {neighbour_workers, _NeighbourWorkers} ->
             noreply;
         {system, From, Request} ->
@@ -307,3 +326,19 @@ export_file(Db, DbFilename, SharedKey) ->
                    end, ok, Db),
     ok = file:sync(Fd),
     {ok, Fd}.
+
+list_users(_Db, _NymPattern, 0, _Nym) ->
+    [];
+list_users(_Db, _NymPattern, _N, '$end_of_table') ->
+    [];
+list_users(Db, all, N, Nym) ->
+    [PkiUser] = ets:lookup(Db, Nym),
+    [PkiUser|list_users(Db, all, N - 1, ets:next(Db, Nym))];
+list_users(Db, {substring, SubStringNym} = NymPattern, N, Nym) ->
+    case string:find(Nym, SubStringNym, leading) of
+        nomatch ->
+            list_users(Db, NymPattern, N, ets:next(Db, Nym));
+        _ ->
+            [PkiUser] = ets:lookup(Db, Nym),
+            [PkiUser|list_users(Db, NymPattern, N - 1, ets:next(Db, Nym))]
+    end.

@@ -5,8 +5,8 @@
 
 -record(pki_user,
         {nym :: binary(),
-         password :: binary(),
-         email = <<"">> :: binary(),
+         password = <<>> :: binary(),
+         email = <<>> :: binary(),
          public_key :: #pk{}}).
 
 -endif.
