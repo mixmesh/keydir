@@ -203,7 +203,7 @@ copy_file(DbFilename) ->
                     ?daemon_log_tag_fmt(
                        system,
                        "WARNING: Could not copy PKI database file from ~s: ~s",
-                       [DbFilename, inet:format_error(Reason)])
+                       [PrePopulatedDbFilename, inet:format_error(Reason)])
             end,
             ok;
         false ->
