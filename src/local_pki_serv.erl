@@ -1,6 +1,7 @@
 -module(local_pki_serv).
--export([start_link/1, stop/1]).
+-export([start_link/2, stop/1]).
 -export([create/2, read/2, update/2, delete/2, list/3]).
+-export([import_public_keys/5]).
 -export([strerror/1]).
 
 -include_lib("apptools/include/log.hrl").
@@ -16,19 +17,20 @@
 
 %% Exported: start_link
 
--spec start_link(binary()) ->
+-spec start_link(binary(), binary()) ->
           serv:spawn_server_result() |
           {error, {file_error, any()}} |
           {error, invalid_dir}.
 
-start_link(Dir) ->
-    ?spawn_server(fun(Parent) -> init(Parent, Dir) end,
+start_link(ObscreteDir, Nym) ->
+    ?spawn_server(fun(Parent) -> init(Parent, ObscreteDir, Nym) end,
                   fun message_handler/1).
 
-init(Parent, Dir) ->
-    case filelib:is_dir(Dir) of
+init(Parent, ObscreteDir, Nym) ->
+    DataDir = data_dir(ObscreteDir, Nym),
+    case filelib:is_dir(DataDir) of
         true ->
-            DbFilename = filename:join([Dir, <<"pki.db">>]),
+            DbFilename = filename:join([DataDir, <<"pki.db">>]),
             ok = copy_file(DbFilename),
             case file:open(DbFilename, [read, write, binary]) of
                 {ok, Fd} ->
@@ -39,7 +41,7 @@ init(Parent, Dir) ->
                     SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
                     ?daemon_log_tag_fmt(
-                       system, "Local PKI server has been started: ~s", [Dir]),
+                       system, "Local PKI server has been started: ~s", [DataDir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 shared_key = SharedKey,
@@ -51,6 +53,9 @@ init(Parent, Dir) ->
         false ->
             {error, invalid_dir}
     end.
+
+data_dir(ObscreteDir, Nym) ->
+    filename:join([ObscreteDir, Nym, <<"player/pki/data">>]).
 
 %% Exported: stop
 
@@ -98,6 +103,29 @@ delete(PkiServName, Nym) ->
 list(PkiServName, NymPattern, N) ->
     serv:call(PkiServName, {list, NymPattern, N}).
 
+%% Exported: import_public_keys
+
+import_public_keys(ObscreteDir, Pin, Nym, PinSalt, PublicKeys) ->
+    KeyBundleFilename = filename:join([data_dir(ObscreteDir, Nym), "pki.db"]),
+    case file:open(KeyBundleFilename, [binary, write]) of
+        {ok, Fd} ->
+            SharedKey = player_crypto:generate_shared_key(Pin, PinSalt),
+            import_public_keys(PublicKeys, Fd, SharedKey);
+        {error, Reason} ->
+            {error, {file, Reason}}
+    end.
+
+import_public_keys([], Fd, _SharedKey) ->
+    file:close(Fd);
+import_public_keys([PublicKey|Rest], Fd, SharedKey) ->
+    case file:write(Fd, pack(PublicKey, SharedKey)) of
+        ok ->
+            import_public_keys(Rest, Fd, SharedKey);
+        {error, Reason} ->
+            file:close(Fd),
+            {error, Reason}
+    end.
+
 %% Exported: strerror
 
 -spec strerror({file_error, any()} |
@@ -118,6 +146,8 @@ strerror(no_such_key) ->
     <<"No such key">>;
 strerror(permission_denied) ->
     <<"Permission denied">>;
+strerror({file, Reason}) ->
+    ?l2b(file:format_error(Reason));
 strerror(Reason) ->
     ?error_log({unknown_error, Reason}),
     <<"Internal error">>.
