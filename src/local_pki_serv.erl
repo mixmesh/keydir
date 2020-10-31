@@ -3,6 +3,7 @@
 -export([create/2, read/2, update/2, delete/2, list/3]).
 -export([import_public_keys/5]).
 -export([strerror/1]).
+-export([message_handler/1, init/3]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
@@ -23,8 +24,8 @@
           {error, invalid_dir}.
 
 start_link(ObscreteDir, Nym) ->
-    ?spawn_server(fun(Parent) -> init(Parent, ObscreteDir, Nym) end,
-                  fun message_handler/1).
+    ?spawn_server({?MODULE, init, [ObscreteDir, Nym]},
+                  {?MODULE, message_handler}).
 
 init(Parent, ObscreteDir, Nym) ->
     DataDir = data_dir(ObscreteDir, Nym),
@@ -41,7 +42,8 @@ init(Parent, ObscreteDir, Nym) ->
                     SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
                     ?daemon_log_tag_fmt(
-                       system, "Local PKI server has been started: ~s", [DataDir]),
+                       system, "Local PKI server has been started: ~s",
+                       [DataDir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 shared_key = SharedKey,
