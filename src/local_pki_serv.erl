@@ -1,9 +1,9 @@
 -module(local_pki_serv).
--export([start_link/2, stop/1]).
+-export([start_link/1, stop/1]).
 -export([create/2, read/2, update/2, delete/2, list/3]).
 -export([import_public_keys/5]).
 -export([strerror/1]).
--export([message_handler/1, init/3]).
+-export([message_handler/1, init/2]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
@@ -18,20 +18,19 @@
 
 %% Exported: start_link
 
--spec start_link(binary(), binary()) ->
+-spec start_link(binary()) ->
           serv:spawn_server_result() |
           {error, {file_error, any()}} |
           {error, invalid_dir}.
 
-start_link(ObscreteDir, Nym) ->
-    ?spawn_server({?MODULE, init, [ObscreteDir, Nym]},
+start_link(LocalPkiDir) ->
+    ?spawn_server({?MODULE, init, [LocalPkiDir]},
                   {?MODULE, message_handler}).
 
-init(Parent, ObscreteDir, Nym) ->
-    DataDir = data_dir(ObscreteDir, Nym),
-    case filelib:is_dir(DataDir) of
+init(Parent, LocalPkiDir) ->
+    case filelib:is_dir(LocalPkiDir) of
         true ->
-            DbFilename = filename:join([DataDir, <<"pki.db">>]),
+            DbFilename = filename:join([LocalPkiDir, <<"pki.db">>]),
             ok = copy_file(DbFilename),
             case file:open(DbFilename, [read, write, binary]) of
                 {ok, Fd} ->
@@ -43,7 +42,7 @@ init(Parent, ObscreteDir, Nym) ->
                     ok = import_file(Fd, Db, SharedKey),
                     ?daemon_log_tag_fmt(
                        system, "Local PKI server has been started: ~s",
-                       [DataDir]),
+                       [LocalPkiDir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 shared_key = SharedKey,
@@ -55,9 +54,6 @@ init(Parent, ObscreteDir, Nym) ->
         false ->
             {error, invalid_dir}
     end.
-
-data_dir(ObscreteDir, Nym) ->
-    filename:join([ObscreteDir, Nym, <<"player">>, <<"pki">>, <<"data">>]).
 
 %% Exported: stop
 
@@ -108,7 +104,9 @@ list(PkiServName, NymPattern, N) ->
 %% Exported: import_public_keys
 
 import_public_keys(ObscreteDir, Pin, Nym, PinSalt, PublicKeys) ->
-    KeyBundleFilename = filename:join([data_dir(ObscreteDir, Nym), "pki.db"]),
+    KeyBundleFilename =
+        filename:join([ObscreteDir, Nym, <<"player">>, <<"local-pki">>,
+                       <<"pki.db">>]),
     case file:open(KeyBundleFilename, [binary, write]) of
         {ok, Fd} ->
             SharedKey = player_crypto:generate_shared_key(Pin, PinSalt),

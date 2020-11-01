@@ -21,15 +21,15 @@
           {error, {file_error, any()}} |
           {error, invalid_dir}.
 
-start_link(Dir) ->
-    ?spawn_server_opts(fun(Parent) -> init(Parent, Dir) end,
+start_link(GlobalPkiDir) ->
+    ?spawn_server_opts(fun(Parent) -> init(Parent, GlobalPkiDir) end,
                        fun message_handler/1,
                        #serv_options{name = ?MODULE}).
 
-init(Parent, Dir) ->
-    case filelib:is_dir(Dir) of
+init(Parent, GlobalPkiDir) ->
+    case filelib:is_dir(GlobalPkiDir) of
         true ->
-            DbFilename = filename:join([Dir, <<"pki.db">>]),
+            DbFilename = filename:join([GlobalPkiDir, <<"pki.db">>]),
             ok = copy_file(DbFilename),
             case file:open(DbFilename, [read, write, binary]) of
                 {ok, Fd} ->
@@ -44,7 +44,8 @@ init(Parent, Dir) ->
                     SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
                     ok = import_file(Fd, Db, SharedKey),
                     ?daemon_log_tag_fmt(
-                       system, "PKI server has been started: ~s", [Dir]),
+                       system, "Global PKI server has been started: ~s",
+                       [GlobalPkiDir]),
                     {ok, #state{parent = Parent,
                                 db = Db,
                                 shared_key = SharedKey,

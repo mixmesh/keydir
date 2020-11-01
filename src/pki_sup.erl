@@ -13,12 +13,12 @@ start_link() ->
 init([]) ->
     case config:lookup(['global-pki-server', enabled]) of
         true ->
-            [{Address, Port}, Timeout, DataDir] =
+            [{Address, Port}, Timeout, GlobalPkiDir] =
                 config:lookup_children([address, timeout, 'data-dir'],
                                        config:lookup(['global-pki-server'])),
             PkiServSpec =
                 #{id => pki_serv,
-                  start => {pki_serv, start_link, [DataDir]}},
+                  start => {pki_serv, start_link, [GlobalPkiDir]}},
             PkiNetworkServSpec =
                 #{id => pki_network_serv,
                   start => {pki_network_serv, start_link,
