@@ -20,39 +20,33 @@
 
 -spec start_link(binary()) ->
           serv:spawn_server_result() |
-          {error, {file_error, any()}} |
-          {error, invalid_dir}.
+          {error, {file_error, any()}}.
 
 start_link(LocalPkiDir) ->
     ?spawn_server({?MODULE, init, [LocalPkiDir]},
                   {?MODULE, message_handler}).
 
 init(Parent, LocalPkiDir) ->
-    case filelib:is_dir(LocalPkiDir) of
-        true ->
-            DbFilename = filename:join([LocalPkiDir, <<"pki.db">>]),
-            ok = copy_file(DbFilename),
-            case file:open(DbFilename, [read, write, binary]) of
-                {ok, Fd} ->
-                    Db = ets:new(pki_db, [ordered_set, {keypos, #pk.nym}]),
-                    [Pin, PinSalt] =
-                        config:lookup_children(
-                          [pin, 'pin-salt'], config:lookup([system])),
-                    SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
-                    ok = import_file(Fd, Db, SharedKey),
-                    ?daemon_log_tag_fmt(
-                       system, "Local PKI server has been started: ~s",
-                       [LocalPkiDir]),
-                    {ok, #state{parent = Parent,
-                                db = Db,
-                                shared_key = SharedKey,
-                                db_filename = DbFilename,
-                                fd = Fd}};
-                {error, Reason} ->
-                    {error, {file_error, Reason}}
-            end;
-        false ->
-            {error, invalid_dir}
+    DbFilename = filename:join([LocalPkiDir, <<"pki.db">>]),
+    ok = copy_file(DbFilename),
+    case file:open(DbFilename, [read, write, binary]) of
+        {ok, Fd} ->
+            Db = ets:new(pki_db, [ordered_set, {keypos, #pk.nym}]),
+            [Pin, PinSalt] =
+                config:lookup_children(
+                  [pin, 'pin-salt'], config:lookup([system])),
+            SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
+            ok = import_file(Fd, Db, SharedKey),
+            ?daemon_log_tag_fmt(
+               system, "Local PKI server has been started: ~s",
+               [LocalPkiDir]),
+            {ok, #state{parent = Parent,
+                        db = Db,
+                        shared_key = SharedKey,
+                        db_filename = DbFilename,
+                        fd = Fd}};
+        {error, Reason} ->
+            {error, {file_error, Reason}}
     end.
 
 %% Exported: stop
@@ -129,7 +123,6 @@ import_public_keys([PublicKey|Rest], Fd, SharedKey) ->
 %% Exported: strerror
 
 -spec strerror({file_error, any()} |
-               invalid_dir |
                key_already_exists |
                no_such_key |
                permission_denied |
@@ -138,8 +131,6 @@ import_public_keys([PublicKey|Rest], Fd, SharedKey) ->
 strerror({file_error, Reason}) ->
     ?error_log({file_error, Reason}),
     <<"PKI database is corrupt">>;
-strerror(invalid_dir) ->
-    <<"PKI directory is invalid">>;
 strerror(key_already_exists) ->
     <<"Key already exists">>;
 strerror(no_such_key) ->

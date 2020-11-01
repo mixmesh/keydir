@@ -18,8 +18,7 @@
 
 -spec start_link(binary()) ->
           serv:spawn_server_result() |
-          {error, {file_error, any()}} |
-          {error, invalid_dir}.
+          {error, {file_error, any()}}.
 
 start_link(GlobalPkiDir) ->
     ?spawn_server_opts(fun(Parent) -> init(Parent, GlobalPkiDir) end,
@@ -27,35 +26,30 @@ start_link(GlobalPkiDir) ->
                        #serv_options{name = ?MODULE}).
 
 init(Parent, GlobalPkiDir) ->
-    case filelib:is_dir(GlobalPkiDir) of
-        true ->
-            DbFilename = filename:join([GlobalPkiDir, <<"pki.db">>]),
-            ok = copy_file(DbFilename),
-            case file:open(DbFilename, [read, write, binary]) of
-                {ok, Fd} ->
-                    KeyPosition = #pki_user.nym,
-                    Db = ets:new(pki_db,
-                                 [ordered_set, {keypos, KeyPosition},
-                                  public, named_table,
-                                  {read_concurrency, true}]),
-                    [Pin, PinSalt] =
-                        config:lookup_children(
-                          [pin, 'pin-salt'], config:lookup([system])),
-                    SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
-                    ok = import_file(Fd, Db, SharedKey),
-                    ?daemon_log_tag_fmt(
-                       system, "Global PKI server has been started: ~s",
-                       [GlobalPkiDir]),
-                    {ok, #state{parent = Parent,
-                                db = Db,
-                                shared_key = SharedKey,
-                                db_filename = DbFilename,
-                                fd = Fd}};
-                {error, Reason} ->
-                    {error, {file_error, Reason}}
-            end;
-        false ->
-            {error, invalid_dir}
+    DbFilename = filename:join([GlobalPkiDir, <<"pki.db">>]),
+    ok = copy_file(DbFilename),
+    case file:open(DbFilename, [read, write, binary]) of
+        {ok, Fd} ->
+            KeyPosition = #pki_user.nym,
+            Db = ets:new(pki_db,
+                         [ordered_set, {keypos, KeyPosition},
+                          public, named_table,
+                          {read_concurrency, true}]),
+            [Pin, PinSalt] =
+                config:lookup_children(
+                  [pin, 'pin-salt'], config:lookup([system])),
+            SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
+            ok = import_file(Fd, Db, SharedKey),
+            ?daemon_log_tag_fmt(
+               system, "Global PKI server has been started: ~s",
+               [GlobalPkiDir]),
+            {ok, #state{parent = Parent,
+                        db = Db,
+                        shared_key = SharedKey,
+                        db_filename = DbFilename,
+                        fd = Fd}};
+        {error, Reason} ->
+            {error, {file_error, Reason}}
     end.
 
 %% Exported: stop
@@ -111,7 +105,6 @@ list(NymPattern, N) ->
 %% Exported: strerror
 
 -spec strerror({file_error, any()} |
-               invalid_dir |
                user_already_exists |
                no_such_user |
                permission_denied |
@@ -120,8 +113,6 @@ list(NymPattern, N) ->
 strerror({file_error, Reason}) ->
     ?error_log({file_error, Reason}),
     <<"PKI database is corrupt">>;
-strerror(invalid_dir) ->
-    <<"PKI directory is invalid">>;
 strerror(user_already_exists) ->
     <<"User already exists">>;
 strerror(no_such_user) ->
