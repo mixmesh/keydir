@@ -57,7 +57,7 @@ init(Parent, ObscreteDir, Nym) ->
     end.
 
 data_dir(ObscreteDir, Nym) ->
-    filename:join([ObscreteDir, Nym, <<"player/pki/data">>]).
+    filename:join([ObscreteDir, Nym, <<"player">>, <<"pki">>, <<"data">>]).
 
 %% Exported: stop
 
