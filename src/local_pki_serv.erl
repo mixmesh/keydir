@@ -1,6 +1,6 @@
 -module(local_pki_serv).
 -export([start_link/1, stop/1]).
--export([create/2, read/2, update/2, delete/2, list/3]).
+-export([create/2, read/2, update/2, delete/2, list/3, all_nyms/1]).
 -export([import_public_keys/5]).
 -export([strerror/1]).
 -export([message_handler/1, init/2]).
@@ -94,6 +94,13 @@ delete(PkiServName, Nym) ->
 
 list(PkiServName, NymPattern, N) ->
     serv:call(PkiServName, {list, NymPattern, N}).
+
+%% Exported: all_nyms
+
+-spec all_nyms(serv:name()) -> {ok, [binary()]}.
+
+all_nyms(PkiServName) ->
+    serv:call(PkiServName, all_nyms).
 
 %% Exported: import_public_keys
 
@@ -195,6 +202,9 @@ message_handler(#state{parent = Parent,
             end;
         {call, From, {list, NymPattern, N}} ->
             {reply, From, {ok, list_keys(Db, NymPattern, N, ets:first(Db))}};
+        {call, From, all_nyms} ->
+            Nyms = ets:foldl(fun(#pk{nym = Nym}, Acc) -> [Nym|Acc] end, [], Db),
+            {reply, From, {ok, Nyms}};
         {neighbour_workers, _NeighbourWorkers} ->
             noreply;
         {system, From, Request} ->
