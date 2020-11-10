@@ -108,7 +108,7 @@ new_db(Nym, ObscreteDir, Pin, PinSalt) ->
     DbFilename =
         filename:join([ObscreteDir, Nym, <<"player">>, <<"local-pki">>,
                        <<"pki.db">>]),
-    file:remove(DbFilename),
+    file:delete(DbFilename),
     case file:open(DbFilename, [binary, write]) of
         {ok, File} ->
             SharedKey = player_crypto:generate_shared_key(Pin, PinSalt),
