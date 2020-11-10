@@ -1,7 +1,7 @@
 -module(local_pki_serv).
 -export([start_link/1, stop/1]).
 -export([create/2, read/2, update/2, delete/2, list/3, all_nyms/1]).
--export([import_public_keys/5]).
+-export([new_db/4, write_to_db/3]).
 -export([strerror/1]).
 -export([message_handler/1, init/2]).
 
@@ -102,30 +102,25 @@ list(PkiServName, NymPattern, N) ->
 all_nyms(PkiServName) ->
     serv:call(PkiServName, all_nyms).
 
-%% Exported: import_public_keys
+%% Exported: new_db
 
-import_public_keys(ObscreteDir, Pin, Nym, PinSalt, PublicKeys) ->
-    KeyBundleFilename =
+new_db(Nym, ObscreteDir, Pin, PinSalt) ->
+    DbFilename =
         filename:join([ObscreteDir, Nym, <<"player">>, <<"local-pki">>,
                        <<"pki.db">>]),
-    case file:open(KeyBundleFilename, [binary, write]) of
-        {ok, Fd} ->
+    file:remove(DbFilename),
+    case file:open(DbFilename, [binary, write]) of
+        {ok, File} ->
             SharedKey = player_crypto:generate_shared_key(Pin, PinSalt),
-            import_public_keys(PublicKeys, Fd, SharedKey);
+            {ok, File, SharedKey};
         {error, Reason} ->
             {error, {file, Reason}}
     end.
 
-import_public_keys([], Fd, _SharedKey) ->
-    file:close(Fd);
-import_public_keys([PublicKey|Rest], Fd, SharedKey) ->
-    case file:write(Fd, pack(PublicKey, SharedKey)) of
-        ok ->
-            import_public_keys(Rest, Fd, SharedKey);
-        {error, Reason} ->
-            file:close(Fd),
-            {error, Reason}
-    end.
+%% Exported: new_db
+
+write_to_db(File, SharedKey, PublicKey) ->
+    ok = file:write(File, pack(PublicKey, SharedKey)).
 
 %% Exported: strerror
 
