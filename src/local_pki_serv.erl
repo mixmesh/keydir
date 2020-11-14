@@ -73,7 +73,7 @@ read(PkiServName, Nym) ->
 %% Exported: update
 
 -spec update(serv:name(), #pk{}) ->
-          ok | {error, no_such_key | permission_denied}.
+          ok | {error, no_such_key}.
 
 update(PkiServName, PublicKey) ->
     serv:call(PkiServName, {update, PublicKey}).
@@ -81,7 +81,7 @@ update(PkiServName, PublicKey) ->
 %% Exported: delete
 
 -spec delete(serv:name(), binary()) ->
-          ok | {error, no_such_key | permission_denied}.
+          ok | {error, no_such_key}.
 
 delete(PkiServName, Nym) ->
     serv:call(PkiServName, {delete, Nym}).
@@ -105,16 +105,17 @@ all_nyms(PkiServName) ->
 %% Exported: new_db
 
 new_db(Nym, ObscreteDir, Pin, PinSalt) ->
+    LocalPkiDir =
+        filename:join([ObscreteDir, Nym, <<"player">>, <<"local-pki">>]),
     DbFilename =
-        filename:join([ObscreteDir, Nym, <<"player">>, <<"local-pki">>,
-                       <<"pki.db">>]),
+        filename:join([LocalPkiDir, <<"pki.db">>]),
     file:delete(DbFilename),
     case file:open(DbFilename, [binary, write]) of
         {ok, File} ->
             SharedKey = player_crypto:generate_shared_key(Pin, PinSalt),
             {ok, File, SharedKey};
         {error, Reason} ->
-            {error, {file, Reason}}
+            {error, {file, Reason, DbFilename}}
     end.
 
 %% Exported: new_db
@@ -127,7 +128,6 @@ write_to_db(File, SharedKey, PublicKey) ->
 -spec strerror({file_error, any()} |
                key_already_exists |
                no_such_key |
-               permission_denied |
                {unknown_error, any()}) -> binary().
 
 strerror({file_error, Reason}) ->
@@ -137,8 +137,6 @@ strerror(key_already_exists) ->
     <<"Key already exists">>;
 strerror(no_such_key) ->
     <<"No such key">>;
-strerror(permission_denied) ->
-    <<"Permission denied">>;
 strerror({file, Reason}) ->
     ?l2b(file:format_error(Reason));
 strerror(Reason) ->
