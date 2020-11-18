@@ -1,5 +1,6 @@
 -module(pki_network_serv).
 -export([start_link/3, stop/1]).
+-export([message_handler/1]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/serv.hrl").
@@ -18,7 +19,7 @@ start_link(Address, Port, Timeout) ->
       fun(Parent) ->
               init(Parent, Address, Port, Timeout)
       end,
-      fun message_handler/1).
+      fun ?MODULE:message_handler/1).
 
 %% Exported: stop
 

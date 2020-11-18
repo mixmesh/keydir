@@ -3,6 +3,7 @@
 -export([create/2, read/2, update/2, delete/2, list/3, all_nyms/1]).
 -export([new_db/4, write_to_db/3]).
 -export([strerror/1]).
+-export([message_handler/1]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
@@ -23,7 +24,7 @@
 
 start_link(LocalPkiDir) ->
     ?spawn_server(fun(Parent) -> init(Parent, LocalPkiDir) end,
-                  fun message_handler/1).
+                  fun ?MODULE:message_handler/1).
 
 init(Parent, LocalPkiDir) ->
     DbFilename = filename:join([LocalPkiDir, <<"pki.db">>]),

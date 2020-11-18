@@ -2,6 +2,7 @@
 -export([start_link/1, stop/0]).
 -export([create/1, read/1, update/1, delete/2, list/2]).
 -export([strerror/1]).
+-export([message_handler/1]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
@@ -22,7 +23,7 @@
 
 start_link(GlobalPkiDir) ->
     ?spawn_server_opts(fun(Parent) -> init(Parent, GlobalPkiDir) end,
-                       fun message_handler/1,
+                       fun ?MODULE:message_handler/1,
                        #serv_options{name = ?MODULE}).
 
 init(Parent, GlobalPkiDir) ->
