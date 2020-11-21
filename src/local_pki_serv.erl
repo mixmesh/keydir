@@ -32,9 +32,10 @@ init(Parent, LocalPkiDir) ->
     case file:open(DbFilename, [read, write, binary]) of
         {ok, Fd} ->
             Db = ets:new(pki_db, [ordered_set, {keypos, #pk.nym}]),
-            [Pin, PinSalt] =
-                config:lookup_children(
-                  [pin, 'pin-salt'], config:lookup([system])),
+            ObscreteDir = config:lookup([system, 'obscrete-dir']),
+            PinFilename = filename:join([ObscreteDir, <<"pin">>]),
+            {ok, Pin} = file:read_file(PinFilename),
+            PinSalt = config:lookup([system, 'pin-salt']),
             SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
             ok = import_file(Fd, Db, SharedKey),
             ?daemon_log_tag_fmt(
