@@ -12,7 +12,7 @@ get() ->
            reloadable = false}},
        {address,
         #json_type{
-           name = ipv4address_port,
+           name = ip4_address_port,
            typical = {{127, 0, 0, 1}, 10000},
            reloadable = false}},
        {timeout,
