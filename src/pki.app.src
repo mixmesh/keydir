@@ -1,0 +1,8 @@
+%% -*- erlang -*-
+{application, pki,
+ [{description, "PKI server and client"},
+  {vsn, git},
+  {modules, ["@@MODULES@@"]},
+  {registered, [pki_serv, pki_sup]},
+  {mod, {pki_app, []}},
+  {applications, [kernel, stdlib]}]}.
