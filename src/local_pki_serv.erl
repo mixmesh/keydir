@@ -32,8 +32,8 @@ init(Parent, LocalPkiDir) ->
     case file:open(DbFilename, [read, write, binary]) of
         {ok, Fd} ->
             Db = ets:new(pki_db, [ordered_set, {keypos, #pk.nym}]),
-            ObscreteDir = config:lookup([system, 'obscrete-dir']),
-            PinFilename = filename:join([ObscreteDir, <<"pin">>]),
+            MixmeshDir = config:lookup([system, 'mixmesh-dir']),
+            PinFilename = filename:join([MixmeshDir, <<"pin">>]),
             {ok, Pin} = file:read_file(PinFilename),
             PinSalt = config:lookup([system, 'pin-salt']),
             SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
@@ -105,9 +105,9 @@ all_nyms(PkiServName) ->
 
 %% Exported: new_db
 
-new_db(Nym, ObscreteDir, Pin, PinSalt) ->
+new_db(Nym, MixmeshDir, Pin, PinSalt) ->
     LocalPkiDir =
-        filename:join([ObscreteDir, Nym, <<"player">>, <<"local-pki">>]),
+        filename:join([MixmeshDir, Nym, <<"player">>, <<"local-pki">>]),
     DbFilename =
         filename:join([LocalPkiDir, <<"pki.db">>]),
     file:delete(DbFilename),

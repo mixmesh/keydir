@@ -23,5 +23,5 @@ get() ->
        {'data-dir',
         #json_type{
            name = writable_directory,
-           typical = <<"/var/obscrete/pki/data">>,
+           typical = <<"/var/mixmesh/pki/data">>,
            reloadable = false}}]}].
