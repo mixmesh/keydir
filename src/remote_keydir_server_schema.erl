@@ -1,10 +1,10 @@
--module(remote_pki_server_schema).
+-module(remote_keydir_server_schema).
 -export([get/0]).
 
 -include_lib("apptools/include/config_schema.hrl").
 
 get() ->
-    [{'remote-pki-server',
+    [{'remote-keydir-server',
       [{enabled,
         #json_type{
            name = bool,
@@ -23,7 +23,7 @@ get() ->
        {'data-dir',
         #json_type{
            name = writable_directory,
-           typical = <<"/var/mixmesh/pki/data">>,
+           typical = <<"/var/mixmesh/keydir/data">>,
            reloadable = false}},
        {'webkey-service',
         [{enabled,

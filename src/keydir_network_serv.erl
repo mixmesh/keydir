@@ -1,11 +1,11 @@
--module(pki_network_serv).
+-module(keydir_network_serv).
 -export([start_link/3, stop/1]).
 -export([message_handler/1]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/serv.hrl").
--include("../include/pki_serv.hrl").
--include("pki_network.hrl").
+-include("../include/keydir_serv.hrl").
+-include("keydir_network.hrl").
 
 -record(state, {parent :: pid(),
                 timeout :: timeout(),
@@ -16,10 +16,10 @@
 
 start_link(Address, Port, Timeout) ->
     ?spawn_server(
-      fun(Parent) ->
-              init(Parent, Address, Port, Timeout)
-      end,
-      fun ?MODULE:message_handler/1).
+       fun(Parent) ->
+               init(Parent, Address, Port, Timeout)
+       end,
+       fun ?MODULE:message_handler/1).
 
 %% Exported: stop
 
@@ -35,7 +35,7 @@ init(Parent, Address, Port, Timeout) ->
         gen_tcp:listen(Port, [{active, false}, {ip, Address}, {reuseaddr, true},
                               binary]),
     self() ! accepted,
-    ?daemon_log_tag_fmt(system, "PKI TCP server started on ~s:~w",
+    ?daemon_log_tag_fmt(system, "Keydir TCP server started on ~s:~w",
                         [inet:ntoa(Address), Port]),
     {ok, #state{parent = Parent,
                 timeout = Timeout,
@@ -97,98 +97,98 @@ read_request(Socket, Timeout) ->
         {ok, ?CREATE} ->
             ?dbg_log(create),
             try
-                PkiUser = pki_util:read_user(Socket, Timeout),
-                case pki_serv:create(PkiUser) of
+                KeydirUser = keydir_util:read_user(Socket, Timeout),
+                case keydir_serv:create(KeydirUser) of
                     ok ->
-                        ok = pki_util:write_integer(1, Socket, ?OK);
+                        ok = keydir_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->
-                        ok = pki_util:write_integer(1, Socket, ?ERROR),
-                        ok = pki_util:write_binary(2, Socket,
-                                                   pki_serv:strerror(Reason))
+                        ok = keydir_util:write_integer(1, Socket, ?ERROR),
+                        ok = keydir_util:write_binary(
+                               2, Socket, keydir_serv:strerror(Reason))
                 end
             catch
                 throw:{?MODULE, ThrowReason} ->
                     ?error_log({create, ThrowReason}),
-                    pki_util:write_integer(1, Socket, ?ERROR),
-                    pki_util:write_binary(2, Socket, <<"Invalid request">>)
+                    keydir_util:write_integer(1, Socket, ?ERROR),
+                    keydir_util:write_binary(2, Socket, <<"Invalid request">>)
             end,
             read_request(Socket, Timeout);
         {ok, ?READ} ->
             ?dbg_log(read),
             try
-                Name = pki_util:read_binary(1, Socket, Timeout),
-                case pki_serv:read(Name)  of
-                    {ok, PkiUser} ->
-                        ok = pki_util:write_integer(1, Socket, ?OK),
-                        pki_util:write_user(Socket, PkiUser#pki_user{
-                                                      password = <<>>,
-                                                      email = <<>>});
+                Name = keydir_util:read_binary(1, Socket, Timeout),
+                case keydir_serv:read(Name)  of
+                    {ok, KeydirUser} ->
+                        ok = keydir_util:write_integer(1, Socket, ?OK),
+                        keydir_util:write_user(Socket, KeydirUser#keydir_user{
+                                                         password = <<>>,
+                                                         email = <<>>});
                     {error, Reason} ->
-                        ok = pki_util:write_integer(1, Socket, ?ERROR),
-                        pki_util:write_binary(2, Socket,
-                                              pki_serv:strerror(Reason))
+                        ok = keydir_util:write_integer(1, Socket, ?ERROR),
+                        keydir_util:write_binary(2, Socket,
+                                                 keydir_serv:strerror(Reason))
                 end
             catch
                 throw:{?MODULE, ThrowReason} ->
                     ?error_log({create, ThrowReason}),
-                    pki_util:write_integer(1, Socket, ?ERROR),
-                    pki_util:write_binary(2, Socket, <<"Invalid request">>)
+                    keydir_util:write_integer(1, Socket, ?ERROR),
+                    keydir_util:write_binary(2, Socket, <<"Invalid request">>)
             end,
             read_request(Socket, Timeout);
         {ok, ?UPDATE} ->
             ?dbg_log(update),
             try
-                PkiUser = pki_util:read_user(Socket, Timeout),
-                case pki_serv:update(PkiUser) of
+                KeydirUser = keydir_util:read_user(Socket, Timeout),
+                case keydir_serv:update(KeydirUser) of
                     ok ->
-                        ok = pki_util:write_integer(1, Socket, ?OK);
+                        ok = keydir_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->
-                        ok = pki_util:write_integer(1, Socket, ?ERROR),
-                        ok = pki_util:write_binary(2, Socket,
-                                                   pki_serv:strerror(Reason))
+                        ok = keydir_util:write_integer(1, Socket, ?ERROR),
+                        ok = keydir_util:write_binary(
+                               2, Socket, keydir_serv:strerror(Reason))
                 end
             catch
                 throw:{?MODULE, ThrowReason} ->
                     ?error_log({update, ThrowReason}),
-                    pki_util:write_integer(1, Socket, ?ERROR),
-                    pki_util:write_binary(2, Socket, <<"Invalid request">>)
+                    keydir_util:write_integer(1, Socket, ?ERROR),
+                    keydir_util:write_binary(2, Socket, <<"Invalid request">>)
             end,
             read_request(Socket, Timeout);
         {ok, ?DELETE} ->
             ?dbg_log(delete),
             try
-                Name = pki_util:read_binary(1, Socket, Timeout),
-                Password = pki_util:read_binary(1, Socket, Timeout),
-                case pki_serv:delete(Name, Password) of
+                Name = keydir_util:read_binary(1, Socket, Timeout),
+                Password = keydir_util:read_binary(1, Socket, Timeout),
+                case keydir_serv:delete(Name, Password) of
                     ok ->
-                        ok = pki_util:write_integer(1, Socket, ?OK);
+                        ok = keydir_util:write_integer(1, Socket, ?OK);
                     {error, Reason} ->
-                        ok = pki_util:write_integer(1, Socket, ?ERROR),
-                        ok = pki_util:write_binary(2, Socket,
-                                                   pki_serv:strerror(Reason))
+                        ok = keydir_util:write_integer(1, Socket, ?ERROR),
+                        ok = keydir_util:write_binary(
+                               2, Socket, keydir_serv:strerror(Reason))
                 end
             catch
                 throw:{?MODULE, ThrowReason} ->
                     ?error_log({update, ThrowReason}),
-                    pki_util:write_integer(1, Socket, ?ERROR),
-                    pki_util:write_binary(2, Socket, <<"Invalid request">>)
+                    keydir_util:write_integer(1, Socket, ?ERROR),
+                    keydir_util:write_binary(2, Socket, <<"Invalid request">>)
             end,
             read_request(Socket, Timeout);
         {ok, ?PING} ->
             ?dbg_log(ping),
-            ok = pki_util:write_integer(1, Socket, ?PONG),
+            ok = keydir_util:write_integer(1, Socket, ?PONG),
             read_request(Socket, Timeout);
         {ok, Method} ->
             ?error_log({unknown_method, Method}),
-            pki_util:write_integer(1, Socket, ?ERROR),
-            pki_util:write_binary(2, Socket, <<"Unknown method">>),
+            keydir_util:write_integer(1, Socket, ?ERROR),
+            keydir_util:write_binary(2, Socket, <<"Unknown method">>),
             read_request(Socket, Timeout);
         {error, Reason} ->
             {error, Reason}
     end.
 
 read_method(Transport, Timeout) ->
-    case pki_network_client:recv(Transport, 1, Timeout) of
+    case keydir_network_client:recv(Transport, 1, Timeout) of
         {ok, <<Method>>} ->
             {ok, Method};
         {error, Reason} ->

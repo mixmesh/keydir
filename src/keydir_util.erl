@@ -1,13 +1,13 @@
--module(pki_util).
+-module(keydir_util).
 -export([read_integer/3, read_binary/3, read_user/2]).
 -export([write_integer/3, write_binary/3, write_user/2]).
 
--include("../include/pki_serv.hrl").
+-include("../include/keydir_serv.hrl").
 
 %% Exported: read_integer
 
 read_integer(Length, Transport, Timeout) ->
-    case pki_network_client:recv(Transport, Length, Timeout) of
+    case keydir_network_client:recv(Transport, Length, Timeout) of
         {ok, <<Integer:Length/unsigned-integer-unit:8>>} ->
             Integer;
         {error, Reason} ->
@@ -21,7 +21,7 @@ read_binary(Length, Transport, Timeout) ->
         0 ->
             <<>>;
         Size ->
-            case pki_network_client:recv(Transport, Size, Timeout) of
+            case keydir_network_client:recv(Transport, Size, Timeout) of
                 {ok, Binary} ->
                     Binary;
                 {error, Reason} ->
@@ -36,15 +36,15 @@ read_user(Transport, Timeout) ->
     Password = read_binary(1, Transport, Timeout),
     Email = read_binary(1, Transport, Timeout),
     PublicKey = read_binary(2, Transport, Timeout),
-    #pki_user{nym = Nym,
-              password = Password,
-              email = Email,
-              public_key = elgamal:binary_to_public_key(PublicKey)}.
+    #keydir_user{nym = Nym,
+                 password = Password,
+                 email = Email,
+                 public_key = elgamal:binary_to_public_key(PublicKey)}.
 
 %% Exported: write_integer
 
 write_integer(Length, Transport, Integer) ->
-    case pki_network_client:send(
+    case keydir_network_client:send(
            Transport, <<Integer:Length/unsigned-integer-unit:8>>) of
         ok ->
             ok;
@@ -61,7 +61,7 @@ write_binary(Length, Transport, Binary) ->
       0 ->
           ok;
       _ ->
-          case pki_network_client:send(Transport, Binary) of
+          case keydir_network_client:send(Transport, Binary) of
               ok ->
                   ok;
               {error, Reason} ->
@@ -71,10 +71,10 @@ write_binary(Length, Transport, Binary) ->
 
 %% Exported: write_user
 
-write_user(Transport, #pki_user{nym = Nym,
-                                password = Password,
-                                email = Email,
-                                public_key = PublicKey}) ->
+write_user(Transport, #keydir_user{nym = Nym,
+                                   password = Password,
+                                   email = Email,
+                                   public_key = PublicKey}) ->
     ok = write_binary(1, Transport, Nym),
     ok = write_binary(1, Transport, Password),
     ok = write_binary(1, Transport, Email),

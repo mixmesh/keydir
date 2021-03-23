@@ -1,0 +1,8 @@
+%% -*- erlang -*-
+{application, keydir,
+ [{description, "Keydir server and client"},
+  {vsn, git},
+  {modules, ["@@MODULES@@"]},
+  {registered, [keydir_serv, keydir_sup]},
+  {mod, {keydir_app, []}},
+  {applications, [kernel, stdlib]}]}.

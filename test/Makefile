@@ -18,4 +18,4 @@ clean:
 #@END-TEST-DEFAULT-RULES@
 
 runtest: all
-	../../mixmesh/bin/run_test --config ../../mixmesh/etc/mixmesh-pki-only.conf .
+	../../mixmesh/bin/run_test --config ../../mixmesh/etc/mixmesh-keydir-only.conf .

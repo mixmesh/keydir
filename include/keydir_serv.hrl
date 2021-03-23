@@ -1,9 +1,9 @@
--ifndef(PKI_SERV_HRL).
--define(PKI_SERV_HRL, true).
+-ifndef(KEYDIR_SERV_HRL).
+-define(KEYDIR_SERV_HRL, true).
 
 -include_lib("elgamal/include/elgamal.hrl").
 
--record(pki_user,
+-record(keydir_user,
         {nym :: binary(),
          password = <<>> :: binary(),
          email = <<>> :: binary(),

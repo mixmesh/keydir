@@ -1,4 +1,4 @@
--module(local_pki_serv).
+-module(local_keydir_serv).
 -export([start_link/1, stop/1]).
 -export([create/2, read/2, update/2, delete/2, list/3, all_nyms/1]).
 -export([new_db/4, write_to_db/3]).
@@ -22,16 +22,16 @@
           serv:spawn_server_result() |
           {error, {file_error, any()}}.
 
-start_link(LocalPkiDir) ->
-    ?spawn_server(fun(Parent) -> init(Parent, LocalPkiDir) end,
+start_link(LocalKeydirDir) ->
+    ?spawn_server(fun(Parent) -> init(Parent, LocalKeydirDir) end,
                   fun ?MODULE:message_handler/1).
 
-init(Parent, LocalPkiDir) ->
-    DbFilename = filename:join([LocalPkiDir, <<"pki.db">>]),
+init(Parent, LocalKeydirDir) ->
+    DbFilename = filename:join([LocalKeydirDir, <<"keydir.db">>]),
     ok = copy_file(DbFilename),
     case file:open(DbFilename, [read, write, binary]) of
         {ok, Fd} ->
-            Db = ets:new(pki_db, [ordered_set, {keypos, #pk.nym}]),
+            Db = ets:new(keydir_db, [ordered_set, {keypos, #pk.nym}]),
             MixmeshDir = config:lookup([system, 'mixmesh-dir']),
             PinFilename = filename:join([MixmeshDir, <<"pin">>]),
             {ok, Pin} = file:read_file(PinFilename),
@@ -39,8 +39,8 @@ init(Parent, LocalPkiDir) ->
             SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
             ok = import_file(Fd, Db, SharedKey),
             ?daemon_log_tag_fmt(
-               system, "Local PKI server has been started: ~s",
-               [LocalPkiDir]),
+               system, "Local Keydir server has been started: ~s",
+               [LocalKeydirDir]),
             {ok, #state{parent = Parent,
                         db = Db,
                         shared_key = SharedKey,
@@ -54,38 +54,38 @@ init(Parent, LocalPkiDir) ->
 
 -spec stop(serv:name()) -> ok.
 
-stop(PkiServName) ->
-    serv:cast(PkiServName, stop).
+stop(KeydirServName) ->
+    serv:cast(KeydirServName, stop).
 
 %% Exported: create
 
 -spec create(serv:name(), #pk{}) -> ok | {error, key_already_exists}.
 
-create(PkiServName, PublicKey) ->
-    serv:call(PkiServName, {create, PublicKey}).
+create(KeydirServName, PublicKey) ->
+    serv:call(KeydirServName, {create, PublicKey}).
 
 %% Exported: read
 
 -spec read(serv:name(), binary()) -> {ok, #pk{}} | {error, no_such_key}.
 
-read(PkiServName, Nym) ->
-    serv:call(PkiServName, {read, Nym}).
+read(KeydirServName, Nym) ->
+    serv:call(KeydirServName, {read, Nym}).
 
 %% Exported: update
 
 -spec update(serv:name(), #pk{}) ->
           ok | {error, no_such_key}.
 
-update(PkiServName, PublicKey) ->
-    serv:call(PkiServName, {update, PublicKey}).
+update(KeydirServName, PublicKey) ->
+    serv:call(KeydirServName, {update, PublicKey}).
 
 %% Exported: delete
 
 -spec delete(serv:name(), binary()) ->
           ok | {error, no_such_key}.
 
-delete(PkiServName, Nym) ->
-    serv:call(PkiServName, {delete, Nym}).
+delete(KeydirServName, Nym) ->
+    serv:call(KeydirServName, {delete, Nym}).
 
 %% Exported: list
 
@@ -93,23 +93,23 @@ delete(PkiServName, Nym) ->
            non_neg_integer()) ->
           {ok, [#pk{}]}.
 
-list(PkiServName, NymPattern, N) ->
-    serv:call(PkiServName, {list, NymPattern, N}).
+list(KeydirServName, NymPattern, N) ->
+    serv:call(KeydirServName, {list, NymPattern, N}).
 
 %% Exported: all_nyms
 
 -spec all_nyms(serv:name()) -> {ok, [binary()]}.
 
-all_nyms(PkiServName) ->
-    serv:call(PkiServName, all_nyms).
+all_nyms(KeydirServName) ->
+    serv:call(KeydirServName, all_nyms).
 
 %% Exported: new_db
 
 new_db(Nym, MixmeshDir, Pin, PinSalt) ->
-    LocalPkiDir =
-        filename:join([MixmeshDir, Nym, <<"player">>, <<"local-pki">>]),
+    LocalKeydirDir =
+        filename:join([MixmeshDir, Nym, <<"player">>, <<"local-keydir">>]),
     DbFilename =
-        filename:join([LocalPkiDir, <<"pki.db">>]),
+        filename:join([LocalKeydirDir, <<"keydir.db">>]),
     file:delete(DbFilename),
     case file:open(DbFilename, [binary, write]) of
         {ok, File} ->
@@ -133,7 +133,7 @@ write_to_db(File, SharedKey, PublicKey) ->
 
 strerror({file_error, Reason}) ->
     ?error_log({file_error, Reason}),
-    <<"PKI database is corrupt">>;
+    <<"Keydir database is corrupt">>;
 strerror(key_already_exists) ->
     <<"Key already exists">>;
 strerror(no_such_key) ->
@@ -218,16 +218,16 @@ copy_file(DbFilename) ->
             PrePopulatedDbFilename =
                 filename:join([code:priv_dir(simulator),
                                config:lookup([simulator, 'data-set']),
-                               <<"pki.db">>]),
+                               <<"keydir.db">>]),
             case file:copy(PrePopulatedDbFilename, DbFilename) of
                 {ok, _BytesCopied} ->
                     ?daemon_log_tag_fmt(
-                       system, "Copied PKI database file from ~s",
+                       system, "Copied Keydir database file from ~s",
                        [PrePopulatedDbFilename]);
                 {error, Reason} ->
                     ?daemon_log_tag_fmt(
                        system,
-                       "WARNING: Could not copy PKI database file from ~s: ~s",
+                       "WARNING: Could not copy Keydir database file from ~s: ~s",
                        [PrePopulatedDbFilename, inet:format_error(Reason)])
             end,
             ok;
@@ -236,9 +236,9 @@ copy_file(DbFilename) ->
     end.
 
 %% BEWARE: The packing format is interchangble/compatible with the
-%% packing format used in pki_serv.erl. That way they can share pki.db
+%% packing format used in keydir_serv.erl. That way they can share keydir.db
 %% files. Very handy. If you change pack/1 you must do the same in
-%% pki_serv.erl.
+%% keydir_serv.erl.
 
 pack(#pk{nym = Nym} = PublicKey, SharedKey) ->
     Nonce = enacl:randombytes(enacl:secretbox_NONCEBYTES()),

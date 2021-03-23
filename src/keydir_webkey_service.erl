@@ -1,4 +1,4 @@
--module(pki_webkey_service).
+-module(keydir_webkey_service).
 -export([start_link/3]).
 -export([handle_http_request/4]).
 
@@ -6,7 +6,7 @@
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("rester/include/rester_http.hrl").
 -include_lib("elgamal/include/elgamal.hrl").
--include_lib("pki/include/pki_serv.hrl").
+-include_lib("keydir/include/keydir_serv.hrl").
 
 %% The section references below refer to
 %% A: https://tools.ietf.org/pdf/draft-koch-openpgp-webkey-service-11.pdf
@@ -35,7 +35,7 @@ start_link(Address, Port, CertFilename) ->
 	 {certfile, CertFilename},
 	 {nodelay, true},
 	 {reuseaddr, true}],
-    ?daemon_log_tag_fmt(system, "PKI Webkey service started on ~s:~w",
+    ?daemon_log_tag_fmt(system, "Keydir Webkey service started on ~s:~w",
                         [inet:ntoa(Address), Port]),
     rester_http_server:start_link(Port, ResterHttpArgs).
 
@@ -78,9 +78,9 @@ handle_http_head_and_get(Socket, Request, _Body, _Options) ->
 return_key(Socket, Request, Url, Method) ->
     case uri_string:dissect_query(Url#url.querypart) of
         [{"l", LocalPart}] ->
-            case pki_serv:read(?l2b(LocalPart))  of
-                {ok, PkiUser} ->
-                    PgpMessage = pgp_message(PkiUser),
+            case keydir_serv:read(?l2b(LocalPart))  of
+                {ok, KeydirUser} ->
+                    PgpMessage = pgp_message(KeydirUser),
                     response(Socket, Request, 200, "OK", PgpMessage,
                              [{content_type, "application/octet-stream"}], Method);
                 {error, _Reason} ->
@@ -96,7 +96,7 @@ response(Socket, Request, Status, Phrase, Body, Opts, 'HEAD') ->
 response(Socket, Request, Status, Phrase, Body, Opts, _Method) ->
     rester_http_server:response_r(Socket, Request, Status, Phrase, Body, Opts).
 
-pgp_message(#pki_user{nym = Nym, public_key = PublicKey}) ->
+pgp_message(#keydir_user{nym = Nym, public_key = PublicKey}) ->
     UserIdPacket = add_packet_header(?USER_ID_PACKET, user_id_packet(Nym)),
     PublicKeyPacket =
         add_packet_header(?PUBLIC_KEY_PACKET, public_key_packet(PublicKey)),

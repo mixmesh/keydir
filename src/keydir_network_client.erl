@@ -1,15 +1,15 @@
--module(pki_network_client).
+-module(keydir_network_client).
 -export([create/3, read/3, update/3, delete/4]).
 -export([alive/2]).
 -export([recv/3, send/2]).
--export_type([pki_access/0]).
+-export_type([keydir_access/0]).
 
 -include_lib("apptools/include/log.hrl").
--include("../include/pki_serv.hrl").
--include("../include/pki_network_client.hrl").
--include("pki_network.hrl").
+-include("../include/keydir_serv.hrl").
+-include("../include/keydir_network_client.hrl").
+-include("keydir_network.hrl").
 
--type pki_access() :: {tor_only,
+-type keydir_access() :: {tor_only,
                        {OnionHostname :: binary(), inet:port_number()}} |
                       {tcp_only,
                        {inet:ip4_address() | inet:hostname(),
@@ -22,27 +22,27 @@
 
 %% Exported: create
 
--spec create(#pki_user{}, #pki_network_client_options{}, timeout()) ->
+-spec create(#keydir_user{}, #keydir_network_client_options{}, timeout()) ->
           ok | {error, any()}.
 
-create(PkiUser, Options, Timeout) ->
-    ?dbg_log({create, PkiUser, Options, Timeout}),
+create(KeydirUser, Options, Timeout) ->
+    ?dbg_log({create, KeydirUser, Options, Timeout}),
     case connect(Timeout, Options) of
         {ok, Transport} ->
             try
-                ok = pki_util:write_integer(1, Transport, ?CREATE),
-                ok = pki_util:write_user(Transport, PkiUser),
-                case pki_util:read_integer(1, Transport, Timeout) of
+                ok = keydir_util:write_integer(1, Transport, ?CREATE),
+                ok = keydir_util:write_user(Transport, KeydirUser),
+                case keydir_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
                         ok;
                     ?ERROR ->
-                        Reason = pki_util:read_binary(2, Transport, Timeout),
+                        Reason = keydir_util:read_binary(2, Transport, Timeout),
                         {error, Reason}
                 end
             catch
-                throw:{pki_util, PkiUtilReason} ->
+                throw:{keydir_util, KeydirUtilReason} ->
                     close(Transport),
-                    {error, PkiUtilReason}
+                    {error, KeydirUtilReason}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -50,28 +50,28 @@ create(PkiUser, Options, Timeout) ->
 
 %% Exported: read
 
--spec read(binary(), #pki_network_client_options{}, timeout()) ->
-          {ok, #pki_user{}} | {error, any()}.
+-spec read(binary(), #keydir_network_client_options{}, timeout()) ->
+          {ok, #keydir_user{}} | {error, any()}.
 
 read(Name, Options, Timeout) ->
     ?dbg_log({read, Name, Timeout, Options}),
     case connect(Timeout, Options) of
         {ok, Transport} ->
             try
-                ok = pki_util:write_integer(1, Transport, ?READ),
-                ok = pki_util:write_binary(1, Transport, Name),
-                case pki_util:read_integer(1, Transport, Timeout) of
+                ok = keydir_util:write_integer(1, Transport, ?READ),
+                ok = keydir_util:write_binary(1, Transport, Name),
+                case keydir_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
-                        PkiUser = pki_util:read_user(Transport, Timeout),
-                        {ok, PkiUser};
+                        KeydirUser = keydir_util:read_user(Transport, Timeout),
+                        {ok, KeydirUser};
                     ?ERROR ->
-                        Reason = pki_util:read_binary(2, Transport, Timeout),
+                        Reason = keydir_util:read_binary(2, Transport, Timeout),
                         {error, Reason}
                 end
             catch
-                throw:{pki_util, PkiUtilReason} ->
+                throw:{keydir_util, KeydirUtilReason} ->
                     close(Transport),
-                    {error, PkiUtilReason}
+                    {error, KeydirUtilReason}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -79,27 +79,27 @@ read(Name, Options, Timeout) ->
 
 %% Exported: update
 
--spec update(#pki_user{}, #pki_network_client_options{}, timeout()) ->
+-spec update(#keydir_user{}, #keydir_network_client_options{}, timeout()) ->
           ok | {error, any()}.
 
-update(PkiUser, Options, Timeout) ->
-    ?dbg_log({update, PkiUser, Timeout, Options}),
+update(KeydirUser, Options, Timeout) ->
+    ?dbg_log({update, KeydirUser, Timeout, Options}),
     case connect(Timeout, Options)  of
         {ok, Transport} ->
             try
-                ok = pki_util:write_integer(1, Transport, ?UPDATE),
-                ok = pki_util:write_user(Transport, PkiUser),
-                case pki_util:read_integer(1, Transport, Timeout) of
+                ok = keydir_util:write_integer(1, Transport, ?UPDATE),
+                ok = keydir_util:write_user(Transport, KeydirUser),
+                case keydir_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
                         ok;
                     ?ERROR ->
-                        Reason = pki_util:read_binary(2, Transport, Timeout),
+                        Reason = keydir_util:read_binary(2, Transport, Timeout),
                         {error, Reason}
                 end
             catch
-                throw:{pki_util, PkiUtilReason} ->
+                throw:{keydir_util, KeydirUtilReason} ->
                     close(Transport),
-                    {error, PkiUtilReason}
+                    {error, KeydirUtilReason}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -107,7 +107,7 @@ update(PkiUser, Options, Timeout) ->
 
 %% Exported: delete
 
--spec delete(binary(), binary(), #pki_network_client_options{}, timeout()) ->
+-spec delete(binary(), binary(), #keydir_network_client_options{}, timeout()) ->
           ok | {error, any()}.
 
 delete(Name, Password, Options, Timeout) ->
@@ -115,20 +115,20 @@ delete(Name, Password, Options, Timeout) ->
     case connect(Timeout, Options) of
         {ok, Transport} ->
             try
-                ok = pki_util:write_integer(1, Transport, ?DELETE),
-                ok = pki_util:write_binary(1, Transport, Name),
-                ok = pki_util:write_binary(1, Transport, Password),
-                case pki_util:read_integer(1, Transport, Timeout) of
+                ok = keydir_util:write_integer(1, Transport, ?DELETE),
+                ok = keydir_util:write_binary(1, Transport, Name),
+                ok = keydir_util:write_binary(1, Transport, Password),
+                case keydir_util:read_integer(1, Transport, Timeout) of
                     ?OK ->
                         ok;
                     ?ERROR ->
-                        Reason = pki_util:read_binary(2, Transport, Timeout),
+                        Reason = keydir_util:read_binary(2, Transport, Timeout),
                         {error, Reason}
                 end
             catch
-                throw:{pki_util, PkiUtilReason} ->
+                throw:{keydir_util, KeydirUtilReason} ->
                     close(Transport),
-                    {error, PkiUtilReason}
+                    {error, KeydirUtilReason}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -141,12 +141,12 @@ delete(Name, Password, Options, Timeout) ->
 alive(Transport, Timeout) ->
     ?dbg_log(ping),
     try
-        ok = pki_util:write_integer(1, Transport, ?PING),
-        ?PONG = pki_util:read_integer(1, Transport, Timeout),
+        ok = keydir_util:write_integer(1, Transport, ?PING),
+        ?PONG = keydir_util:read_integer(1, Transport, Timeout),
         ?dbg_log(pong),
         true
     catch
-        throw:{pki_util, _Reason} ->
+        throw:{keydir_util, _Reason} ->
             false
     end.
 
@@ -155,38 +155,38 @@ alive(Transport, Timeout) ->
 %%
 
 connect(Timeout, Options) ->
-    Transport = get(pki_transport),
+    Transport = get(keydir_transport),
     case Transport /= undefined andalso alive(Transport, Timeout) of
         true ->
             {ok, Transport};
         false ->
             case Options of
-                #pki_network_client_options{
-                   pki_access = {tor_only, {OnionAddress, Port}}} ->
+                #keydir_network_client_options{
+                   keydir_access = {tor_only, {OnionAddress, Port}}} ->
                     case tor_socks_tcp:connect(
                            OnionAddress, Port, [binary, {active, false}],
                            Timeout) of
                         {ok, Pid} ->
                             NewTransport = {socks, Pid},
-                            put(pki_transport, NewTransport),
+                            put(keydir_transport, NewTransport),
                             {ok, NewTransport};
                         {error, Reason} ->
                             {error, Reason}
                     end;
-                #pki_network_client_options{
-                   pki_access = {tcp_only, {IpAddress, Port}}} ->
+                #keydir_network_client_options{
+                   keydir_access = {tcp_only, {IpAddress, Port}}} ->
                     case gen_tcp:connect(
                            IpAddress, Port, [binary, {active, false}],
                            Timeout) of
                         {ok, Socket} ->
                             NewTransport = Socket,
-                            put(pki_transport, NewTransport),
+                            put(keydir_transport, NewTransport),
                             {ok, NewTransport};
                         {error, Reason} ->
                             {error, Reason}
                     end;
-                #pki_network_client_options{
-                   pki_access = {tor_fallback_to_tcp,
+                #keydir_network_client_options{
+                   keydir_access = {tor_fallback_to_tcp,
                                  {OnionAddress, OnionPort},
                                  {IpAddress, TcpPort}}} ->
                     case tor_socks_tcp:connect(
@@ -194,7 +194,7 @@ connect(Timeout, Options) ->
                            Timeout) of
                         {ok, Pid} ->
                             NewTransport = {socks, Pid},
-                            put(pki_transport, NewTransport),
+                            put(keydir_transport, NewTransport),
                             {ok, NewTransport};
                         {error, _Reason} ->
                             case gen_tcp:connect(
@@ -202,7 +202,7 @@ connect(Timeout, Options) ->
                                    [binary, {active, false}], Timeout) of
                                 {ok, Socket} ->
                                     NewTransport = Socket,
-                                    put(pki_transport, NewTransport),
+                                    put(keydir_transport, NewTransport),
                                     ?daemon_log_tag_fmt(
                                        system,
                                        "WARNING: Falls back to TCP access",
@@ -216,10 +216,10 @@ connect(Timeout, Options) ->
     end.
 
 close({socks, Pid}) ->
-    erase(pki_transport),
+    erase(keydir_transport),
     tor_socks_tcp:close(Pid);
 close(Socket) ->
-    erase(pki_transport),
+    erase(keydir_transport),
     gen_tcp:close(Socket).
 
 %% Exported: recv

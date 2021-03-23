@@ -1,4 +1,4 @@
--module(pki_serv).
+-module(keydir_serv).
 -export([start_link/1, stop/0]).
 -export([create/1, read/1, update/1, delete/2, list/2]).
 -export([strerror/1]).
@@ -7,7 +7,7 @@
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
 -include_lib("apptools/include/serv.hrl").
--include("../include/pki_serv.hrl").
+-include("../include/keydir_serv.hrl").
 
 -record(state, {parent :: pid(),
                 db :: ets:tid(),
@@ -21,18 +21,18 @@
           serv:spawn_server_result() |
           {error, {file_error, any()}}.
 
-start_link(GlobalPkiDir) ->
-    ?spawn_server_opts(fun(Parent) -> init(Parent, GlobalPkiDir) end,
+start_link(RemoteKeydirDir) ->
+    ?spawn_server_opts(fun(Parent) -> init(Parent, RemoteKeydirDir) end,
                        fun ?MODULE:message_handler/1,
                        #serv_options{name = ?MODULE}).
 
-init(Parent, GlobalPkiDir) ->
-    DbFilename = filename:join([GlobalPkiDir, <<"pki.db">>]),
+init(Parent, RemoteKeydirDir) ->
+    DbFilename = filename:join([RemoteKeydirDir, <<"keydir.db">>]),
     ok = copy_file(DbFilename),
     case file:open(DbFilename, [read, write, binary]) of
         {ok, Fd} ->
-            KeyPosition = #pki_user.nym,
-            Db = ets:new(pki_db,
+            KeyPosition = #keydir_user.nym,
+            Db = ets:new(keydir_db,
                          [ordered_set, {keypos, KeyPosition},
                           public, named_table,
                           {read_concurrency, true}]),
@@ -43,8 +43,8 @@ init(Parent, GlobalPkiDir) ->
             SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
             ok = import_file(Fd, Db, SharedKey),
             ?daemon_log_tag_fmt(
-               system, "Global PKI server has been started: ~s",
-               [GlobalPkiDir]),
+               system, "Remote Keydir server has been started: ~s",
+               [RemoteKeydirDir]),
             {ok, #state{parent = Parent,
                         db = Db,
                         shared_key = SharedKey,
@@ -63,30 +63,30 @@ stop() ->
 
 %% Exported: create
 
--spec create(#pki_user{}) -> ok | {error, user_already_exists}.
+-spec create(#keydir_user{}) -> ok | {error, user_already_exists}.
 
-create(PkiUser) ->
-    serv:call(?MODULE, {create, PkiUser}).
+create(KeydirUser) ->
+    serv:call(?MODULE, {create, KeydirUser}).
 
 %% Exported: read
 
--spec read(binary()) -> {ok, #pki_user{}} | {error, no_such_user}.
+-spec read(binary()) -> {ok, #keydir_user{}} | {error, no_such_user}.
 
 read(Nym) ->
-    case ets:lookup(pki_db, Nym)  of
+    case ets:lookup(keydir_db, Nym)  of
         [] ->
             {error, no_such_user};
-        [PkiUser] ->
-            {ok, PkiUser}
+        [KeydirUser] ->
+            {ok, KeydirUser}
     end.
 
 %% Exported: update
 
--spec update(#pki_user{}) ->
+-spec update(#keydir_user{}) ->
           ok | {error, no_such_user | permission_denied}.
 
-update(PkiUser) ->
-    serv:call(?MODULE, {update, PkiUser}).
+update(KeydirUser) ->
+    serv:call(?MODULE, {update, KeydirUser}).
 
 %% Exported: delete
 
@@ -99,7 +99,7 @@ delete(Nym, Password) ->
 %% Exported: list
 
 -spec list({substring, binary()} | all, non_neg_integer()) ->
-          {ok, [#pki_user{}]}.
+          {ok, [#keydir_user{}]}.
 
 list(NymPattern, N) ->
     serv:call(?MODULE, {list, NymPattern, N}).
@@ -114,7 +114,7 @@ list(NymPattern, N) ->
 
 strerror({file_error, Reason}) ->
     ?error_log({file_error, Reason}),
-    <<"PKI database is corrupt">>;
+    <<"Keydir database is corrupt">>;
 strerror(user_already_exists) ->
     <<"User already exists">>;
 strerror(no_such_user) ->
@@ -138,13 +138,13 @@ message_handler(#state{parent = Parent,
         {cast, stop} ->
             file:close(Fd),
             stop;
-        {call, From, {create, PkiUser}} ->
-            case ets:lookup(Db, PkiUser#pki_user.nym) of
+        {call, From, {create, KeydirUser}} ->
+            case ets:lookup(Db, KeydirUser#keydir_user.nym) of
                 [_] ->
                     {reply, From, {error, user_already_exists}};
                 [] ->
-                    true = ets:insert(Db, PkiUser),
-                    ok = file:write(Fd, pack(PkiUser, SharedKey)),
+                    true = ets:insert(Db, KeydirUser),
+                    ok = file:write(Fd, pack(KeydirUser, SharedKey)),
                     ok = file:sync(Fd),
                     {reply, From, ok}
             end;
@@ -152,16 +152,17 @@ message_handler(#state{parent = Parent,
             case ets:lookup(Db, Nym)  of
                 [] ->
                     {reply, From, {error, no_such_user}};
-                [PkiUser] ->
-                    {reply, From, {ok, PkiUser#pki_user{password = <<>>}}}
+                [KeydirUser] ->
+                    {reply, From, {ok, KeydirUser#keydir_user{password = <<>>}}}
             end;
-        {call, From, {update, #pki_user{nym = Nym,
-                                        password = Password} = PkiUser}} ->
+        {call, From, {update, #keydir_user{
+                                 nym = Nym,
+                                 password = Password} = KeydirUser}} ->
             case ets:lookup(Db, Nym) of
                 [] ->
                     {reply, From, {error, no_such_user}};
-                [#pki_user{password = Password}] ->
-                    true = ets:insert(Db, PkiUser),
+                [#keydir_user{password = Password}] ->
+                    true = ets:insert(Db, KeydirUser),
                     file:close(Fd),
                     {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
                     {reply, From, ok, State#state{fd = NewFd}};
@@ -172,7 +173,7 @@ message_handler(#state{parent = Parent,
             case ets:lookup(Db, Nym) of
                 [] ->
                     {reply, From, {error, no_such_user}};
-                [#pki_user{password = Password}] ->
+                [#keydir_user{password = Password}] ->
                     true = ets:delete(Db, Nym),
                     file:close(Fd),
                     {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
@@ -194,18 +195,18 @@ message_handler(#state{parent = Parent,
 
 copy_file(DbFilename) ->
     PrePopulatedDbFilename =
-        filename:join([code:priv_dir(pki), <<"pki.db">>]),
+        filename:join([code:priv_dir(keydir), <<"keydir.db">>]),
     case filelib:is_regular(PrePopulatedDbFilename) of
         true ->
             case file:copy(PrePopulatedDbFilename, DbFilename) of
                 {ok, _BytesCopied} ->
                     ?daemon_log_tag_fmt(
-                       system, "Copied PKI database file from ~s",
+                       system, "Copied Keydir database file from ~s",
                        [PrePopulatedDbFilename]);
                 {error, Reason} ->
                     ?daemon_log_tag_fmt(
                        system,
-                       "WARNING: Could not copy PKI database file from ~s: ~s",
+                       "WARNING: Could not copy Keydir database file from ~s: ~s",
                        [DbFilename, inet:format_error(Reason)])
             end,
             ok;
@@ -214,14 +215,14 @@ copy_file(DbFilename) ->
     end.
 
 %% BEWARE: The packing format is interchangble/compatible with the
-%% packing format used in local_pki_serv.erl. That way they can share
-%% pki.db files. Very handy. If you change pack/1 you must do the same
-%% in local_pki_serv.erl.
+%% packing format used in local_keydir_serv.erl. That way they can share
+%% keydir.db files. Very handy. If you change pack/1 you must do the same
+%% in local_keydir_serv.erl.
 
-pack(#pki_user{nym = Nym,
-               password = Password,
-               email = Email,
-               public_key = PublicKey}, SharedKey) ->
+pack(#keydir_user{nym = Nym,
+                  password = Password,
+                  email = Email,
+                  public_key = PublicKey}, SharedKey) ->
     Nonce = enacl:randombytes(enacl:secretbox_NONCEBYTES()),
     NonceSize = size(Nonce),
     NymSize = size(Nym),
@@ -262,12 +263,12 @@ import_file(Fd, Db, SharedKey) ->
                    PublicKeySize:16/unsigned-integer,
                    PublicKey:PublicKeySize/binary>>} =
                 enacl:secretbox_open(EncryptedEntry, Nonce, SharedKey),
-            PkiUser =
-                #pki_user{nym = Nym,
-                          password = Password,
-                          email = Email,
-                          public_key = elgamal:binary_to_public_key(PublicKey)},
-            true = ets:insert(Db, PkiUser),
+            KeydirUser =
+                #keydir_user{nym = Nym,
+                             password = Password,
+                             email = Email,
+                             public_key = elgamal:binary_to_public_key(PublicKey)},
+            true = ets:insert(Db, KeydirUser),
             import_file(Fd, Db, SharedKey);
         {error, Reason} ->
             {error, Reason}
@@ -276,8 +277,8 @@ import_file(Fd, Db, SharedKey) ->
 export_file(Db, DbFilename, SharedKey) ->
     _ = file:delete(DbFilename),
     {ok, Fd} = file:open(DbFilename, [read, write, binary]),
-    ok = ets:foldl(fun(PkiUser, ok) ->
-                           file:write(Fd, pack(PkiUser, SharedKey))
+    ok = ets:foldl(fun(KeydirUser, ok) ->
+                           file:write(Fd, pack(KeydirUser, SharedKey))
                    end, ok, Db),
     ok = file:sync(Fd),
     {ok, Fd}.
@@ -287,13 +288,13 @@ list_users(_Db, _NymPattern, 0, _Nym) ->
 list_users(_Db, _NymPattern, _N, '$end_of_table') ->
     [];
 list_users(Db, all, N, Nym) ->
-    [PkiUser] = ets:lookup(Db, Nym),
-    [PkiUser|list_users(Db, all, N - 1, ets:next(Db, Nym))];
+    [KeydirUser] = ets:lookup(Db, Nym),
+    [KeydirUser|list_users(Db, all, N - 1, ets:next(Db, Nym))];
 list_users(Db, {substring, SubStringNym} = NymPattern, N, Nym) ->
     case string:find(Nym, SubStringNym, leading) of
         nomatch ->
             list_users(Db, NymPattern, N, ets:next(Db, Nym));
         _ ->
-            [PkiUser] = ets:lookup(Db, Nym),
-            [PkiUser|list_users(Db, NymPattern, N - 1, ets:next(Db, Nym))]
+            [KeydirUser] = ets:lookup(Db, Nym),
+            [KeydirUser|list_users(Db, NymPattern, N - 1, ets:next(Db, Nym))]
     end.
