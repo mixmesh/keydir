@@ -1,10 +1,10 @@
--module(global_pki_server_schema).
+-module(remote_pki_server_schema).
 -export([get/0]).
 
 -include_lib("apptools/include/config_schema.hrl").
 
 get() ->
-    [{'global-pki-server',
+    [{'remote-pki-server',
       [{enabled,
         #json_type{
            name = bool,
@@ -36,6 +36,3 @@ get() ->
              name = ip4_address_port,
              typical = {{127, 0, 0, 1}, 10001},
              reloadable = false}}]}]}].
-
-
-

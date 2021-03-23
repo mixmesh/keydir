@@ -11,15 +11,15 @@ start_link() ->
 %% Exported: init
 
 init([]) ->
-    case config:lookup(['global-pki-server', enabled]) of
+    case config:lookup(['remote-pki-server', enabled]) of
         true ->
-            [{Address, Port}, Timeout, GlobalPkiDir, WebkeyService] =
+            [{Address, Port}, Timeout, RemotePkiDir, WebkeyService] =
                 config:lookup_children(
                   [address, timeout, 'data-dir', 'webkey-service'],
-                  config:lookup(['global-pki-server'])),
+                  config:lookup(['remote-pki-server'])),
             PkiServSpec =
                 #{id => pki_serv,
-                  start => {pki_serv, start_link, [GlobalPkiDir]}},
+                  start => {pki_serv, start_link, [RemotePkiDir]}},
             PkiNetworkServSpec =
                 #{id => pki_network_serv,
                   start => {pki_network_serv, start_link,
@@ -30,11 +30,11 @@ init([]) ->
                         [MixmeshDir] =
                             config:lookup_children(
                               ['mixmesh-dir'], config:lookup([system])),
-                        GlobalPkiDir =
-                            filename:join([MixmeshDir, <<"global-pki">>]),
+                        RemotePkiDir =
+                            filename:join([MixmeshDir, <<"remote-pki">>]),
                         CertFilename =
                             filename:join(
-                              [GlobalPkiDir, <<"ssl">>, <<"cert.pem">>]),
+                              [RemotePkiDir, <<"ssl">>, <<"cert.pem">>]),
                         [#{id => pki_webkey_service,
                            start => {pki_webkey_service, start_link,
                                      [WebkeyServiceAddress,
