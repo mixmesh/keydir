@@ -1,0 +1,198 @@
+Resources
+=========
+
+https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f
+https://keys.openpgp.org/about
+https://tools.ietf.org/html/draft-dkg-openpgp-abuse-resistant-keystore-04
+https://tools.ietf.org/html/draft-shaw-openpgp-hkp-00
+https://github.com/mailvelope/keyserver/
+https://spin.atomicobject.com/2013/11/24/secure-gpg-keys-guide/
+RFC4880
+
+REST API
+========
+
+* POST: /passwordLogin
+
+  Body:
+    {
+      "keyId: <base64>,
+      "password": <string>
+    }
+  Success: 200
+    {
+      "sessionTicket": <base64>
+    }
+  Failure: 400
+    {
+      "errorMessage": <string>
+    }
+  Failure: 403
+    {
+      "errorMessage": <string>
+    }
+    
+* POST: /bankIdAuth
+
+  Body:
+    {
+      "keyId: <base64>,
+      "personalNumber": <string>
+    }
+  Success: 200
+    {
+      "sessionTicket": <base64>
+    }
+  Failure: 400
+    {
+      "errorMessage": <string>
+    }
+  Failure: 403
+    {
+      "errorMessage": <string>
+    }
+    
+* POST: /bankIdCollect
+
+  Body:
+    {
+      "sessionTicket: <base64>
+    }
+  Success: 200
+    {
+      "status": "pending" | "failed" | "complete",
+      "hintCode": <maybe: string>
+    }
+  Failure: 400
+    {
+      "errorMessage": <string>
+    }
+  Failure: 403
+    {
+      "errorMessage": <string>
+    }
+    
+* POST: /bankIdCancel
+
+  Body:
+    {
+      "sessionTicket: <base64>
+    }
+  Success: 200
+  Failure: 400
+    {
+      "errorMessage": <string>
+    }
+  Failure: 403
+    {
+      "errorMessage": <string>
+    }
+    
+* POST: /commonLogout
+
+  Body:
+    {
+      "sessionTicket: <base64>
+    }
+  Success: 200
+  Failure: 400
+    {
+      "errorMessage": <string>
+    }
+  Failure: 403
+    {
+      "errorMessage": <string>
+    }
+
+* POST: /create (key must not exist)
+
+  Body:
+    {
+      "sessionTicket": <base64>
+      "key": <ascii-armored OpenPGP key>
+    }
+  Success: 200
+  Failure: 303
+    {
+      "errorMessage": <string>
+    }
+  Failure: 400
+    {
+      "errorMessage": <string>
+    }  
+
+
+
+
+* GET: /read
+
+  HTTP method: GET
+  Variant: /read/key-id/<key-id>
+  Variant: /read/nym/<nym>
+  Variant: /read/given-name/<full-name>
+  Variant: /read/personal-number/<personal-number>
+
+  
+  Body: -
+  Success: 200 OK
+    [{
+      "nym": <string>,
+      "verified": <boolean>
+      "full-name": <if verified: string>
+      "personal-number": <if verified: string>      
+      "email-address": <string>,
+      "password-digest": <if not verified: salt+digest>,
+      "creation-time": <positive integer>,
+      "expiration-time": <positive integer>,
+      "public-key": <ascii-armored key>
+      "signature": <string>
+    }]
+  Failure: 400 Bad Request
+  Failure: 404 Not Found
+
+* Request: /update (key *may* already exist)
+
+  HTTP method: POST
+  Requires: A valid X-Keydir-Session-Ticket header
+  Body:
+    {
+      "nym": <mandatory: string>,
+      "email-address": <optional: string),
+      "password-digest": <optional, only if not verified: salt+digest>,
+      "expiration-time": <optional: positive integer>,
+      "public-key": <mandatory: ascii-armored key>
+      "signature": <mandatory: string>
+    }
+  Success: 200 OK
+    {
+      "nym": <string>,
+      "verified": <boolean>
+      "full-name": <if verified: string>
+      "personal-number": <if verified: string>      
+      "email-address": <string>,
+      "password-digest": <if not verified: salt+digest>,
+      "creation-time": <positive integer>,
+      "expiration-time": <positive integer>,
+      "public-key": <ascii-armored key>
+      "signature": <string>
+    }
+  Failure: 400 Bad Request
+  Failure: 403 Forbidden
+    "You are not authenticated to update this key"
+
+* Request: /delete
+
+  HTTP method: POST
+  Requires: A valid X-Keydir-Session-Ticket header
+  Body:
+    {
+      "nym": <mandatory: string>
+    }
+  Success: 200 OK
+  Failure: 400 Bad Request
+  Failure: 403 Forbidden
+    "You are not authenticated to delete this key"
+  Failure: 404 Not Found
+    "This key can not be found"
+
+-endif.
