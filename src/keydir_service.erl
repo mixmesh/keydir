@@ -113,7 +113,7 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                 {value, {_, Op}} when Op == "index" orelse Op == "vindex" ->
                     case lists:keysearch("search", 1, ParsedQueryString) of
                         {value, {_, "0x" ++ KeyIdHexString}} ->
-                            KeyId = ?l2b(hexstr_to_bin(KeyIdHexString)),
+                            KeyId = hexstr_to_bin(KeyIdHexString),
                             Keys = keydir_read(KeydirDb, {key_id, KeyId}),
                             {json, 200, #{<<"keys">> => matching_keys(Keys)}};
                         {value, {_, Text}} ->
