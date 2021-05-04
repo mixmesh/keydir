@@ -18,4 +18,4 @@ clean:
 #@END-TEST-DEFAULT-RULES@
 
 runtest: all
-	../../mixmesh/bin/run_test --config ../../mixmesh/etc/mixmesh-keydir-only.conf .
+	rm -f /tmp/mixmesh/keydir-service/keydir_service; ../../mixmesh/bin/run_test --config ../../mixmesh/etc/mixmesh-keydir-only.conf .

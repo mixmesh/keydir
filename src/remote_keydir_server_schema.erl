@@ -23,16 +23,6 @@ get() ->
        {'data-dir',
         #json_type{
            name = writable_directory,
-           typical = <<"/var/mixmesh/keydir/data">>,
-           reloadable = false}},
-       {'webkey-service',
-        [{enabled,
-          #json_type{
-             name = bool,
-             typical = false,
-             reloadable = false}},
-         {address,
-          #json_type{
-             name = ip4_address_port,
-             typical = {{127, 0, 0, 1}, 10001},
-             reloadable = false}}]}]}].
+           typical = <<"/var/mixmesh/remote-keydir-server">>,
+           reloadable = false}}]}].
+

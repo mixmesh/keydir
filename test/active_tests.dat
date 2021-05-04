@@ -1,4 +1,5 @@
 [
- test_pki_serv,
- test_pki_network_serv
+ test_keydir_serv,
+ test_keydir_network_serv,
+ test_keydir_service
 ].

@@ -21,13 +21,13 @@
           serv:spawn_server_result() |
           {error, {file_error, any()}}.
 
-start_link(RemoteKeydirDir) ->
-    ?spawn_server_opts(fun(Parent) -> init(Parent, RemoteKeydirDir) end,
+start_link(DataDir) ->
+    ?spawn_server_opts(fun(Parent) -> init(Parent, DataDir) end,
                        fun ?MODULE:message_handler/1,
                        #serv_options{name = ?MODULE}).
 
-init(Parent, RemoteKeydirDir) ->
-    DbFilename = filename:join([RemoteKeydirDir, <<"keydir.db">>]),
+init(Parent, DataDir) ->
+    DbFilename = filename:join([DataDir, <<"keydir.db">>]),
     ok = copy_file(DbFilename),
     case file:open(DbFilename, [read, write, binary]) of
         {ok, Fd} ->
@@ -43,8 +43,7 @@ init(Parent, RemoteKeydirDir) ->
             SharedKey = player_crypto:pin_to_shared_key(Pin, PinSalt),
             ok = import_file(Fd, Db, SharedKey),
             ?daemon_log_tag_fmt(
-               system, "Remote Keydir server has been started: ~s",
-               [RemoteKeydirDir]),
+               system, "Remote Keydir server has been started: ~s", [DataDir]),
             {ok, #state{parent = Parent,
                         db = Db,
                         shared_key = SharedKey,

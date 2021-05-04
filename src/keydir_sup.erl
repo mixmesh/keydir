@@ -11,42 +11,46 @@ start_link() ->
 %% Exported: init
 
 init([]) ->
-    case config:lookup(['remote-keydir-server', enabled]) of
-        true ->
-            [{Address, Port}, Timeout, RemoteKeydirDir, WebkeyService] =
-                config:lookup_children(
-                  [address, timeout, 'data-dir', 'webkey-service'],
-                  config:lookup(['remote-keydir-server'])),
-            KeydirServSpec =
-                #{id => keydir_serv,
-                  start => {keydir_serv, start_link, [RemoteKeydirDir]}},
-            KeydirNetworkServSpec =
-                #{id => keydir_network_serv,
-                  start => {keydir_network_serv, start_link,
-                            [Address, Port, Timeout]}},
-            KeydirWebkeyServiceSpec =
-                case config:lookup_children([enabled, address],
-                                            WebkeyService) of
-                    [true, {WebkeyServiceAddress, WebkeyServicePort}] ->
-                        [MixmeshDir] =
-                            config:lookup_children(
-                              ['mixmesh-dir'], config:lookup([system])),
-                        RemoteKeydirDir =
-                            filename:join([MixmeshDir, <<"remote-keydir">>]),
-                        CertFilename =
-                            filename:join(
-                              [RemoteKeydirDir, <<"ssl">>, <<"cert.pem">>]),
-                        [#{id => keydir_webkey_service,
-                           start => {keydir_webkey_service, start_link,
-                                     [WebkeyServiceAddress,
-                                      WebkeyServicePort,
-                                      CertFilename]}}];
-                    [false, _] ->
-                        []
-                end,
-            {ok, {#{strategy => one_for_all},
-                  [KeydirServSpec, KeydirNetworkServSpec] ++
-                      KeydirWebkeyServiceSpec}};
-        false ->
-            {ok, {#{strategy => one_for_all}, []}}
-    end.
+    RemoteKeydirServerSpecs =
+        case config:lookup(['remote-keydir-server', enabled]) of
+            true ->
+                [{RemoteKeydirServerAddress, RemoteKeydirServerPort},
+                 Timeout, RemoteKeydirServerDataDir] =
+                    config:lookup_children(
+                      [address, timeout, 'data-dir'],
+                      config:lookup(['remote-keydir-server'])),
+                KeydirServSpec =
+                    #{id => keydir_serv,
+                      start => {keydir_serv, start_link,
+                                [RemoteKeydirServerDataDir]}},
+                KeydirNetworkServSpec =
+                    #{id => keydir_network_serv,
+                      start => {keydir_network_serv, start_link,
+                                [RemoteKeydirServerAddress,
+                                 RemoteKeydirServerPort,
+                                 Timeout]}},
+                [KeydirServSpec, KeydirNetworkServSpec];
+            false ->
+                []
+        end,
+    KeydirServiceSpecs =
+        case config:lookup(['keydir-service', enabled]) of
+            true ->
+                [{KeydirServiceAddress, KeydirServicePort},
+                 KeydirServiceDataDir] =
+                    config:lookup_children([address, 'data-dir'],
+                                           config:lookup(['keydir-service'])),
+                KeydirServiceCertFilename =
+                    filename:join([KeydirServiceDataDir, <<"ssl">>,
+                                   <<"cert.pem">>]),
+                [#{id => keydir_service,
+                   start => {keydir_service, start_link,
+                             [KeydirServiceAddress,
+                              KeydirServicePort,
+                              KeydirServiceCertFilename,
+                              KeydirServiceDataDir]}}];
+            false ->
+                []
+        end,
+    {ok, {#{strategy => one_for_all},    
+          RemoteKeydirServerSpecs ++ KeydirServiceSpecs}}.
