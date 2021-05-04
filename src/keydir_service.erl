@@ -538,7 +538,9 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
                         [_, _] ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   <<"User Attributes of type GIVEN-NAME/129 and PERSONAL-NUMBER/130 must *not* be specified">>}}
+                                   <<"User Attributes of type GIVEN-NAME/129 "
+                                     "and PERSONAL-NUMBER/130 must *not* be "
+                                     "specified">>}}
                     end;
                 {bank_id, {complete, GivenName, PersonalNumber}} ->
                     case keydir_pgp:user_attribute_values(
@@ -547,7 +549,8 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
                         [_GivenName, undefined] ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   "A User Attribute of type PERSONAL-NUMBER/130 *must* be specified"}};
+                                   "A User Attribute of type "
+                                   "PERSONAL-NUMBER/130 *must* be specified"}};
                         [undefined, PersonalNumber] ->
                             Key =
                                 #keydir_key{
@@ -577,11 +580,15 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
                         [GivenName, _MismatchedPersonalNumber] ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   "The User Attribute of type PERSONAL-NUMBER/130 does not match login credentials"}};
+                                   "The User Attribute of type "
+                                   "PERSONAL-NUMBER/130 does not match login "
+                                   "credentials"}};
                         [_MismatchedGivenName, PersonalNumber] ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   "The User Attribute of type GIVEN-NAME/129 does not match login credentials"}}
+                                   "The User Attribute of type "
+                                   "GIVEN-NAME/129 does not match login "
+                                   "credentials"}}
                     end
             end;
         {error, Reason} ->
@@ -610,7 +617,8 @@ extract_nym(UserIds, UserAttributes) ->
                       {response,
                        {json, 400,
                         #{<<"errorMessage">> =>
-                              "A User ID or a User Attribute of type NYM/128 *must* be specified"}}})
+                              "A User ID or a User Attribute of type NYM/128 "
+                              "*must* be specified"}}})
             end;
         [UserId|_] ->
             UserId
@@ -702,7 +710,8 @@ create_hkp_key(DataDir, KeydirDb, EncodedKey) ->
                 [_, _] ->
                     {json, 400,
                      #{<<"errorMessage">> =>
-                           <<"User Attributes of type GIVEN-NAME/129 and PERSONAL-NUMBER/130 must *not* be specified">>}}
+                           <<"User Attributes of type GIVEN-NAME/129 and "
+                             "PERSONAL-NUMBER/130 must *not* be specified">>}}
             end;
         {error, Reason} ->
 	    ?error_log({invalid_key, EncodedKey, Reason}),
@@ -713,7 +722,7 @@ create_hkp_key(DataDir, KeydirDb, EncodedKey) ->
 %%
 
 bin_to_hexstr(Bin) ->
-    lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- binary_to_list(Bin)]).
+    lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- ?b2l(Bin)]).
 
 %%
 %% Session database primitives
@@ -946,7 +955,7 @@ default_phrase(505) -> "HTTP Version not supported".
 hexstr_to_bin(S) ->
     hexstr_to_bin(S, []).
 hexstr_to_bin([], Acc) ->
-    list_to_binary(lists:reverse(Acc));
+    ?l2b(lists:reverse(Acc));
 hexstr_to_bin([X,Y|T], Acc) ->
     {ok, [V], []} = io_lib:fread("~16u", [X, Y]),
     hexstr_to_bin(T, [V|Acc]);
