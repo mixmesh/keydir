@@ -5,84 +5,80 @@
 -include("../include/keydir_service.hrl").
 
 -define(PASSWORD, <<"mortuta42">>).
--define(VALID_PERSONAL_NUMBER, <<"201701012393">>).
+-define(PERSONAL_NUMBER, <<"201701012393">>).
 
 start() ->
     start(password).
 
 start(LoginMode) ->
-    AliceKeyId = <<"alice">>,
+    AliceFingerprint = <<"fingerprint-alice">>,
+    EncodedAliceFingerprint = base64:encode(AliceFingerprint),
+    AliceKeyId = keydir_service:fingerprint_to_key_id(AliceFingerprint),
     EncodedAliceKeyId = base64:encode(AliceKeyId),
     AliceKey =
         case LoginMode of
             password ->
                 base64:encode(
                   jsone:encode(
-                    #{<<"keyId">> => EncodedAliceKeyId,
-                      <<"fingerprint">> => EncodedAliceKeyId,
-                      <<"userIds">> => [<<"alice">>],
-                      <<"userAttributes">> => []}));
+                    #{<<"fingerprint">> => EncodedAliceFingerprint,
+                      <<"userIds">> => [<<"alice">>]}));
             bank_id ->
                 base64:encode(
                   jsone:encode(
-                    #{<<"keyId">> => EncodedAliceKeyId,
-                      <<"fingerprint">> => EncodedAliceKeyId,
-                      <<"userIds">> => [<<"alice">>],
-                      <<"userAttributes">> => [#{<<"type">> => ?PERSONAL_NUMBER_ATTRIBUTE,
-                                                 <<"value">> => ?VALID_PERSONAL_NUMBER}]}))
+                    #{<<"fingerprint">> => EncodedAliceFingerprint,
+                      <<"userIds">> =>
+                          [<<"alice">>,
+                           keydir_pgp:personal_number_user_id(
+                             ?PERSONAL_NUMBER)]}))
         end,
-
-    BobKeyId = <<"bob">>,
-    EncodedBobKeyId = base64:encode(BobKeyId),
+    
+    BobFingerprint = <<"fingerprint-bob">>,
+    EncodedBobFingerprint = base64:encode(BobFingerprint),
+    %%BobKeyId = keydir_service:fingerprint_to_key_id(BobFingerprint),
+    %%EncodedBobKeyId = base64:encode(BobKeyId),
     BobKey =
         base64:encode(
           jsone:encode(
-            #{<<"keyId">> => EncodedBobKeyId,
-              <<"fingerprint">> => EncodedBobKeyId,
-              <<"userIds">> => [],
-              <<"userAttributes">> =>
-                  [#{<<"type">> => ?NYM_ATTRIBUTE,
-                     <<"value">> => <<"bob">>}]})),
+            #{<<"fingerprint">> => EncodedBobFingerprint,
+              <<"userIds">> => [keydir_pgp:nym_user_id(<<"bob">>)]})),
 
-    ChuckKeyId = <<"chuck">>,
+    ChuckFingerprint = <<"fingerprint-chuck">>,
+    EncodedChuckFingerprint = base64:encode(ChuckFingerprint),
+    ChuckKeyId = keydir_service:fingerprint_to_key_id(ChuckFingerprint),
     EncodedChuckKeyId = base64:encode(ChuckKeyId),
     ChuckKey =
         base64:encode(
           jsone:encode(
-            #{<<"keyId">> => EncodedChuckKeyId,
-              <<"fingerprint">> => EncodedChuckKeyId,
-              <<"userIds">> => [<<"alice">>, <<"bob">>],
-              <<"userAttributes">> =>
-                  [#{<<"type">> => ?NYM_ATTRIBUTE,
-                     <<"value">> => <<"alice">>}]})),
-
-    FredKeyId = <<"fred">>,
-    EncodedFredKeyId = base64:encode(FredKeyId),
+            #{<<"fingerprint">> => EncodedChuckFingerprint,
+              <<"userIds">> => [<<"alice">>,
+                                <<"bob">>,
+                                keydir_pgp:nym_user_id(<<"alice">>)]})),
+    
+    FredFingerprint = <<"fingerprint-fred">>,
+    EncodedFredFingerprint = base64:encode(FredFingerprint),
+    %FredKeyId = keydir_service:fingerprint_to_key_id(FredFingerprint),
+    %EncodedFredKeyId = base64:encode(FredKeyId),
     FredKey =
         base64:encode(
           jsone:encode(
-            #{<<"keyId">> => EncodedFredKeyId,
-              <<"fingerprint">> => EncodedFredKeyId,
-              <<"userIds">> => [],
-              <<"userAttributes">> =>
-                  [#{<<"type">> => ?NYM_ATTRIBUTE,
-                     <<"value">> => <<"fred">>}]})),
+            #{<<"fingerprint">> => EncodedFredFingerprint,
+              <<"userIds">> => [keydir_pgp:nym_user_id(<<"fred">>)]})),
 
     %%
     io:format("**** Read a non-exsting key (should fail)\n"),
     {ok, 404, #{<<"errorMessage">> := <<"No such key">>}} =
         json_post(
           "https://127.0.0.1:4436/read",
-          #{<<"keyId">> => EncodedAliceKeyId}),
+          #{<<"fingerprint">> => EncodedAliceFingerprint}),
     
     %%
     io:format("**** Login as Bob\n"),
-    {ok, BobSessionTicket} = password_login(EncodedBobKeyId),
+    {ok, BobSessionTicket} = password_login(EncodedBobFingerprint),
     
     %%
-    io:format("**** Try to create a key with a mismatched Key ID\n"),
+    io:format("**** Try to create a key with a mismatched fingerprint\n"),
     {ok, 401, #{<<"errorMessage">> :=
-                    <<"Key ID does not match login credentials">>}} =
+                    <<"Fingerprint does not match login credentials">>}} =
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => BobSessionTicket,
                     <<"key">> => AliceKey}),
@@ -96,7 +92,7 @@ start(LoginMode) ->
     
     %%
     io:format("**** Login as Chuck\n"),
-    {ok, ChuckSessionTicket} = password_login(EncodedChuckKeyId),
+    {ok, ChuckSessionTicket} = password_login(EncodedChuckFingerprint),
     
     %%
     io:format("**** Create Chuck's key\n"),
@@ -122,9 +118,9 @@ start(LoginMode) ->
     {ok, AliceSessionTicket} =
         case LoginMode of
             password ->
-                password_login(EncodedAliceKeyId);
+                password_login(EncodedAliceFingerprint);
             bank_id ->
-                bank_id_login(EncodedAliceKeyId)
+                bank_id_login(EncodedAliceFingerprint)
         end,
 
     %%
@@ -153,23 +149,24 @@ start(LoginMode) ->
     {ok, 200, AliceKey} =
         json_post(
           "https://127.0.0.1:4436/read",
-          #{<<"keyId">> => EncodedAliceKeyId,
+          #{<<"fingerprint">> => EncodedAliceFingerprint,
             <<"verified">> => (LoginMode == bank_id)}),
     
     %%
-    io:format("**** Read Alice's key with the help of Alice's User ID (Chuck's key will returned as well!)\n"),
+    io:format("**** Read Alice's key with the help of Alice's User ID "
+              "(Chuck's key will returned as well!)\n"),
     {ok, 200, #{<<"keys">> := MatchingUserIdAliceKeys}} =
         json_post(
           "https://127.0.0.1:4436/read",
           #{<<"userId">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedChuckKeyId,
+            [#{<<"fingerprint">> := EncodedChuckFingerprint,
                <<"keyId">> := EncodedChuckKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>,<<"bob">>],
                <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedAliceKeyId,
+             #{<<"fingerprint">> := EncodedAliceFingerprint,
                <<"keyId">> := EncodedAliceKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>],
@@ -177,12 +174,12 @@ start(LoginMode) ->
                 lists:sort(MatchingUserIdAliceKeys);
         bank_id ->
             [#{<<"keyId">> := EncodedChuckKeyId,
-               <<"fingerprint">> := EncodedChuckKeyId,
+               <<"fingerprint">> := EncodedChuckFingerprint,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>,<<"bob">>],
                <<"verified">> := false},
              #{<<"keyId">> := EncodedAliceKeyId,
-               <<"fingerprint">> := EncodedAliceKeyId,
+               <<"fingerprint">> := EncodedAliceFingerprint,
                <<"nym">> := <<"alice">>,
                <<"personalNumber">> := <<"201701012393">>,
                <<"userIds">> := [<<"alice">>],
@@ -191,27 +188,29 @@ start(LoginMode) ->
     end,
 
     %%
-    io:format("**** Read Alice's key with the help of Alice's User ID *and* Key ID\n"),
+    io:format("**** Read Alice's key with the help of Alice's User ID *and* "
+              "fingerprint\n"),
     {ok, 200, AliceKey} =
         json_post(
           "https://127.0.0.1:4436/read",
-          #{<<"keyId">> => EncodedAliceKeyId,
+          #{<<"fingerprint">> => EncodedAliceFingerprint,
             <<"userId">> => <<"alice">>}),
     
     %%
-    io:format("**** Read Alice's key with the help of Alice's Nym (Chuck's key will returned as well!)\n"),
+    io:format("**** Read Alice's key with the help of Alice's Nym (Chuck's "
+              "key will returned as well!)\n"),
     {ok, 200, #{<<"keys">> := MatchingNymAliceKeys}} =
         json_post(
           "https://127.0.0.1:4436/read",
           #{<<"nym">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedChuckKeyId,
+            [#{<<"fingerprint">> := EncodedChuckFingerprint,
                <<"keyId">> := EncodedChuckKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>,<<"bob">>],
                <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedAliceKeyId,
+             #{<<"fingerprint">> := EncodedAliceFingerprint,
                <<"keyId">> := EncodedAliceKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>],
@@ -219,12 +218,12 @@ start(LoginMode) ->
                 lists:sort(MatchingNymAliceKeys);
         bank_id ->
             [#{<<"keyId">> := EncodedChuckKeyId,
-               <<"fingerprint">> := EncodedChuckKeyId,
+               <<"fingerprint">> := EncodedChuckFingerprint,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>,<<"bob">>],
                <<"verified">> := false},
              #{<<"keyId">> := EncodedAliceKeyId,
-               <<"fingerprint">> := EncodedAliceKeyId,
+               <<"fingerprint">> := EncodedAliceFingerprint,
                <<"nym">> := <<"alice">>,
                <<"personalNumber">> := <<"201701012393">>,
                <<"userIds">> := [<<"alice">>],
@@ -257,7 +256,7 @@ start(LoginMode) ->
         json_post(
           "https://127.0.0.1:4436/delete",
           #{<<"sessionTicket">> => ChuckSessionTicket,
-            <<"keyId">> => EncodedAliceKeyId}),
+            <<"fingerprint">> => EncodedAliceFingerprint}),
     
     %%
     io:format("**** Logout Chuck\n"),
@@ -265,21 +264,21 @@ start(LoginMode) ->
         json_post("https://127.0.0.1:4436/logout",
                   #{<<"sessionTicket">> => ChuckSessionTicket}).
 
-password_login(EncodedKeyId) ->
+password_login(EncodedFingerprint) ->
     {ok, 200, #{<<"sessionTicket">> := SessionTicket}} =
         json_post("https://127.0.0.1:4436/passwordLogin",
-                  #{<<"keyId">> => EncodedKeyId,
+                  #{<<"fingerprint">> => EncodedFingerprint,
                     <<"password">> => ?PASSWORD}),
     {ok, SessionTicket}.
 
-bank_id_login(EncodedKeyId) ->
-    bank_id_auth(EncodedKeyId).
+bank_id_login(EncodedFingerprint) ->
+    bank_id_auth(EncodedFingerprint).
 
-bank_id_auth(EncodedKeyId) ->
+bank_id_auth(EncodedFingerprint) ->
     {ok, 200, #{<<"sessionTicket">> := SessionTicket}} =
         json_post("https://127.0.0.1:4436/bankIdAuth",
-                  #{<<"keyId">> => EncodedKeyId,
-                    <<"personalNumber">> => ?VALID_PERSONAL_NUMBER}),
+                  #{<<"fingerprint">> => EncodedFingerprint,
+                    <<"personalNumber">> => ?PERSONAL_NUMBER}),
     bank_id_collect(SessionTicket).
 
 bank_id_collect(SessionTicket) ->
@@ -311,6 +310,7 @@ json_post(Url, JsonValue) ->
                       {object_key_type, value},
                       {space, 1},
                       native_forward_slash]),
+    io:format("URL: ~s\n", [Url]),
     case httpc:request(
            post,
            {Url, [], "application/json", RequestBody},
@@ -330,6 +330,7 @@ json_post(Url, JsonValue) ->
     end.
     
 http_get(Url) ->
+    io:format("URL: ~s\n", [Url]),
     case httpc:request(get, {Url, []}, [{timeout, 120 * 1000}],
                        [{body_format, binary}]) of
         {ok, {{_Version, StatusCode, _ReasonPhrase}, _Headers, <<>>}} ->
@@ -346,6 +347,7 @@ http_get(Url) ->
     end.
 
 http_post(Url, Body) ->
+    io:format("URL: ~s\n", [Url]),
     case httpc:request(
            post,
            {Url, [], "application/octet-stream", Body},

@@ -1,51 +1,70 @@
 -module(keydir_pgp).
--export([decode_key/1, user_attribute_values/2]).
+-export([decode_key/1]).
+-export([nym_user_id/1, given_name_user_id/1, personal_number_user_id/1]).
 
-%-type ascii_armored_pgp_key() :: binary().
-%-type base64string() :: binary().
-%-type user_id() :: binary().
-%-type attribute_type() :: pos_integer().
-%-type attribute_value() :: binary().
+-include("../include/keydir_service.hrl").
 
 %%
 %% Exported: decode_key
 %%
 
-%-spec decode_key(asci_armored_pgp_key()) ->
-%          {ok, #{<<"keyId">> := base64string(),
-%                 <<"userIds">> := [user_id()],
-%                 <<"userAttributes">> := #{<<"type">> := attribute_type(),
-%                                           <<"value">> := attribute_value()}}} |
-%          {error, any()}.
-
 decode_key(EncodedKey) ->
-    {ok, jsone:decode(base64:decode(EncodedKey))}.
-
-%%
-%% Exported: user_attribute_values
-%%
-
-%-spec user_attribute_values([attribute_type()],
-%                            [#{<<"type">> := attribute_type(),
-%                               <<"value">> := attribute_value()}]) ->
-%          [attribute_value()].
-
-user_attribute_values(Types, Attributes) ->
-    user_attribute_values(Types, Attributes, []).
-
-user_attribute_values([], _Attributes, Values) ->
-    lists:reverse(Values);
-user_attribute_values([Type|Rest], Attributes, Values) ->
-    case attribute_search(Type, Attributes) of
-        {found, Value} ->
-            user_attribute_values(Rest, Attributes, [Value|Values]);
-        not_found ->
-            user_attribute_values(Rest, Attributes, [undefined|Values])
+    #{<<"fingerprint">> := EncodedFingerprint,
+      <<"userIds">> := UserIds} =
+        jsone:decode(base64:decode(EncodedKey)),
+    {RemainingUserIds, Key} = parse_user_ids(UserIds),
+    case get_nym(RemainingUserIds, Key) of
+        {ok, Nym} ->
+            {ok, Key#keydir_key{fingerprint = base64:decode(EncodedFingerprint),
+                                user_ids = RemainingUserIds,
+                                nym = Nym}};
+        {error, Reason} ->
+            {error, Reason}
     end.
 
-attribute_search(_Type, []) ->
-    not_found;
-attribute_search(Type, [#{<<"type">> := Type, <<"value">> := Value}|_]) ->
-    {found, Value};
-attribute_search(Type, [_|Rest]) ->
-    attribute_search(Type, Rest).
+parse_user_ids(UserIds) ->
+    parse_user_ids(UserIds, {[], #keydir_key{}}).
+
+parse_user_ids([], {RemainingUserIds, Key}) ->
+    {lists:reverse(RemainingUserIds), Key};
+parse_user_ids([<<"MIXMESH-NYM:", Nym/binary>>|Rest],
+               {RemainingUserIds, Key}) -> 
+    parse_user_ids(Rest, {RemainingUserIds, Key#keydir_key{nym = Nym}});
+parse_user_ids([<<"MIXMESH-GIVEN-NAME:", GivenName/binary >>|Rest],
+               {RemainingUserIds, Key}) -> 
+    parse_user_ids(Rest, {RemainingUserIds,
+                          Key#keydir_key{given_name = GivenName}});
+parse_user_ids([<<"MIXMESH-PERSONAL-NUMBER:", PersonalNumber/binary >>|Rest],
+               {RemainingUserIds, Key}) -> 
+    parse_user_ids(Rest, {RemainingUserIds,
+                          Key#keydir_key{personal_number = PersonalNumber}});
+parse_user_ids([UserId|Rest], {RemainingUserIds, Key}) -> 
+    parse_user_ids(Rest, {[UserId|RemainingUserIds], Key}).
+
+get_nym([], #keydir_key{nym = undefined}) ->
+    {error, nym_is_missing};
+get_nym(_RemaininUserIds, #keydir_key{nym = Nym}) when Nym /= undefined ->
+    {ok, Nym};
+get_nym([UserId|_], _Key) ->
+    {ok, UserId}.
+
+%%
+%% Exported: nym_user_id (used by test suite)
+%%
+
+nym_user_id(Nym) ->
+    << <<"MIXMESH-NYM:">>/binary, Nym/binary >>.
+
+%%
+%% Exported: given_name_user_id (used by test suite)
+%%
+
+given_name_user_id(GivenName) ->
+    << <<"MIXMESH-GIVEN-NAME:">>/binary, GivenName/binary >>.
+
+%%
+%% Exported: personal_number_user_id (used by test suite)
+%%
+
+personal_number_user_id(PersonalNumber) ->
+    << <<"MIXMESH-PERSONAL-NUMBER:">>/binary, PersonalNumber/binary >>.

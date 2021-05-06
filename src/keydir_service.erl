@@ -1,7 +1,6 @@
 -module(keydir_service).
--export([start_link/4, bin_to_hexstr/1]).
--export([handle_http_request/4]).
--export([purge_sessions/1]).
+-export([start_link/4, bin_to_hexstr/1, fingerprint_to_key_id/1]).
+-export([purge_sessions/1, handle_http_request/4]).
 -export_type([key_id/0, user_id/0, nym/0, password/0]).
 
 -include_lib("apptools/include/log.hrl").
@@ -13,8 +12,8 @@
 -define(VALID_UNTIL_TIME, (60 * 5)). % 5 minutes
 -define(SESSION_PURGE_TIME, 15000). % 15 seconds
 
--type key_id() :: binary().
--type fingerprint() :: binary().
+-type key_id() :: binary(). %% 8 octets
+-type fingerprint() :: binary(). %% 20 or 32 octets
 -type user_id() :: binary().
 -type nym() :: binary().
 -type password() :: binary().
@@ -28,7 +27,7 @@
                  {bank_id,
                   {complete, bank_id:given_name(), bank_id:personal_number()}} |
                  undefined,
-         key_id :: key_id() | undefined,
+         fingerprint :: fingerprint() | undefined,
          valid_until :: pos_integer() | '$1'}).
 
 %%
@@ -54,7 +53,34 @@ start_link(Address, Port, CertFilename, DataDir) ->
     rester_http_server:start_link(Port, ResterHttpArgs).
 
 %%
-%% Exported: handle_http_request
+%% Exported: bin_to_hexstr (used by test suite)
+%%
+
+bin_to_hexstr(Bin) ->
+    lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- ?b2l(Bin)]).
+
+%%
+%% Exported: fingerprint_to_key_id (used by test suite)
+%%
+
+fingerprint_to_key_id(Fingerprint) ->
+    binary:part(Fingerprint, {byte_size(Fingerprint), -8}).
+
+%%
+%% Exported: purge_sessions (only used internally)
+%%
+
+purge_sessions(SessionDb) ->
+    Now = erlang:system_time(seconds),
+    NumDeleted =
+        ets:select_delete(
+          SessionDb, [{#session{valid_until = '$1'},
+                       [{'/=', '$1', undefined}, {'>', Now, '$1'}],
+                       [true]}]),
+    ?dbg_log({purged_sessions, NumDeleted}).
+
+%%
+%% Exported: handle_http_request (only used internally)
 %%
 
 handle_http_request(Socket, Request, Body, XArgs) ->
@@ -93,17 +119,24 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                     case lists:keysearch("search", 1, ParsedQueryString) of
                         {value, {_, "0x" ++ KeyIdHexString}} ->
                             KeyId = hexstr_to_bin(KeyIdHexString),
-                            case keydir_read(KeydirDb, {key_id, KeyId}) of
-                                [_] ->
-                                    EncodedKeyId = base64:encode(KeyId),
+                            case keydir_read(KeydirDb, #{key_id => KeyId}) of
+                                [#keydir_key{fingerprint = Fingerprint}] ->
+                                    EncodedFingerprint =
+                                        base64:encode(Fingerprint),
                                     KeyFilename =
-                                        filename:join([DataDir, EncodedKeyId]),
+                                        filename:join(
+                                          [DataDir, EncodedFingerprint]),
                                     {200, {file, KeyFilename},
                                      [{content_type,
                                        "application/octet-stream"}]};
                                 [] ->
                                     {json, 404,
-                                     #{<<"errorMessage">> => <<"No such key">>}}
+                                     #{<<"errorMessage">> =>
+                                           <<"No such key">>}};
+                                MultipleKeys when is_list(MultipleKeys) ->
+                                    {json, 300,
+                                     #{<<"errorMessage">> =>
+                                           <<"Key ID matches multiple keys">>}}
                             end;
                         {value, _} ->
                             501;
@@ -114,7 +147,7 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                     case lists:keysearch("search", 1, ParsedQueryString) of
                         {value, {_, "0x" ++ KeyIdHexString}} ->
                             KeyId = hexstr_to_bin(KeyIdHexString),
-                            Keys = keydir_read(KeydirDb, {key_id, KeyId}),
+                            Keys = keydir_read(KeydirDb, #{key_id => KeyId}),
                             {json, 200, #{<<"keys">> => matching_keys(Keys)}};
                         {value, {_, Text}} ->
                             Keys = keydir_read(KeydirDb, #{nym => ?l2b(Text)}),
@@ -137,20 +170,23 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
         ["passwordLogin"] ->
             try
                 JsonValue = parse_json_body(Request, Body),
-                [EncodedKeyId, Password] =
+                [EncodedFingerprint, Password] =
                     rest_util:parse_json_params(
                       JsonValue,
-                      [{<<"keyId">>, fun erlang:is_binary/1},
+                      [{<<"fingerprint">>, fun erlang:is_binary/1},
                        {<<"password">>, fun erlang:is_binary/1}]),
-                KeyId = base64:decode(EncodedKeyId),
-                case keydir_read(KeydirDb, {key_id, KeyId}) of
+                Fingerprint = base64:decode(EncodedFingerprint),
+                case keydir_read(KeydirDb, #{fingerprint => Fingerprint}) of
                     [] ->
-                        start_password_session(SessionDb, KeyId, Password);
+                        start_password_session(
+                          SessionDb, Fingerprint, Password);
                     [#keydir_key{password = Password}] ->
-                        start_password_session(SessionDb, KeyId, Password);
+                        start_password_session(
+                          SessionDb, Fingerprint, Password);
                     [_] ->
-                        {json, 403, #{<<"errorMessage">> =>
-                                          <<"Invalid keyId or password">>}}
+                        {json, 403,
+                         #{<<"errorMessage">> =>
+                               <<"Invalid fingerprint or password">>}}
                 end
             catch
                 throw:{error, ErrorMessage} ->
@@ -161,23 +197,23 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
         ["bankIdAuth"] ->
             try
                 JsonValue = parse_json_body(Request, Body),
-                [EncodedKeyId, PersonalNumber] =
+                [EncodedFingerprint, PersonalNumber] =
                     rest_util:parse_json_params(
                       JsonValue,
-                      [{<<"keyId">>, fun erlang:is_binary/1},
+                      [{<<"fingerprint">>, fun erlang:is_binary/1},
                        {<<"personalNumber">>, fun erlang:is_binary/1}]),
-                KeyId = base64:decode(EncodedKeyId),
-                case keydir_read(KeydirDb, {key_id, KeyId}) of
+                Fingerprint = base64:decode(EncodedFingerprint),
+                case keydir_read(KeydirDb, #{fingerprint => Fingerprint}) of
                     [] ->
                         start_bank_id_session(
-                          Socket, SessionDb, KeyId, PersonalNumber);
+                          Socket, SessionDb, Fingerprint, PersonalNumber);
                     [#keydir_key{personal_number = PersonalNumber}] ->
                         start_bank_id_session(
-                          Socket, SessionDb, KeyId, PersonalNumber);
+                          Socket, SessionDb, Fingerprint, PersonalNumber);
                     [_] ->
                         {json, 403,
                          #{<<"errorMessage">> =>
-                               <<"Invalid keyId or personalNumber">>}}
+                               <<"Invalid fingerprint or personalNumber">>}}
                 end
             catch
                 throw:{error, ErrorMessage} ->
@@ -372,8 +408,9 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                                    verified => Verified}) of
                     [] ->
                         {json, 404, #{<<"errorMessage">> => <<"No such key">>}};
-                    [#keydir_key{key_id = KeyId}] ->
-                        KeyFilename = filename:join([DataDir, EncodedKeyId]),
+                    [#keydir_key{fingerprint = Fingerprint}] ->
+                        KeyFilename =
+                            filename:join([DataDir, EncodedFingerprint]),
                         {200, {file, KeyFilename},
                          [{content_type, "application/octet-stream"}]};
                     Keys ->
@@ -421,17 +458,18 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
         ["delete"] ->
             try
                 JsonValue = parse_json_body(Request, Body),
-                [EncodedSessionTicket, EncodedKeyId] =
+                [EncodedSessionTicket, EncodedFingerprint] =
                     rest_util:parse_json_params(
                       JsonValue,
                       [{<<"sessionTicket">>, fun erlang:is_binary/1},
-                       {<<"keyId">>,  fun erlang:is_binary/1}]),
+                       {<<"fingerprint">>,  fun erlang:is_binary/1}]),
                 SessionTicket = base64:decode(EncodedSessionTicket),
-                KeyId = base64:decode(EncodedKeyId),
+                Fingerprint = base64:decode(EncodedFingerprint),
                 case session_lookup(SessionDb, SessionTicket) of
-                    [#session{key_id = KeyId}] ->
-                        ok = keydir_delete(KeydirDb, KeyId),
-                        KeyFilename = filename:join([DataDir, EncodedKeyId]),
+                    [#session{fingerprint = Fingerprint}] ->
+                        ok = keydir_delete(KeydirDb, Fingerprint),
+                        KeyFilename =
+                            filename:join([DataDir, EncodedFingerprint]),
                         ok = file:delete(KeyFilename),
                         200;
                     [] ->
@@ -461,14 +499,14 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
 %% Request: /login
 %%
 
-start_password_session(SessionDb, KeyId, Password) ->
+start_password_session(SessionDb, Fingerprint, Password) ->
     SessionTicket = enacl:randombytes(?SESSION_TICKET_SIZE),
     Now = erlang:system_time(seconds),
     Session =
         #session{
            session_ticket = SessionTicket,
            type = {password, Password},
-           key_id = KeyId,
+           fingerprint = Fingerprint,
            valid_until = Now + ?VALID_UNTIL_TIME},
     true = session_insert(SessionDb, Session),
     {json, 200, #{<<"sessionTicket">> => base64:encode(SessionTicket)}}.
@@ -477,7 +515,7 @@ start_password_session(SessionDb, KeyId, Password) ->
 %% Request: /bankIdAuth
 %%
 
-start_bank_id_session(Socket, SessionDb, KeyId, PersonalNumber) ->
+start_bank_id_session(Socket, SessionDb, Fingerprint, PersonalNumber) ->
     ClientIpAddress = client_ip_address(Socket),
     case bank_id:auth(PersonalNumber, ClientIpAddress) of
         {ok, OrderRef} ->
@@ -487,7 +525,7 @@ start_bank_id_session(Socket, SessionDb, KeyId, PersonalNumber) ->
                 #session{
                    session_ticket = SessionTicket,
                    type = {bank_id, {pending, OrderRef, <<"auth">>}},
-                   key_id = KeyId,
+                   fingerprint = Fingerprint,
                    valid_until = Now + ?VALID_UNTIL_TIME},
             true = session_insert(SessionDb, Session),
             {json, 200, #{<<"sessionTicket">> => base64:encode(SessionTicket)}};
@@ -507,88 +545,57 @@ create_key(DataDir, SessionDb, KeydirDb, EncodedKey, Session) ->
     insert_key(DataDir, SessionDb, KeydirDb, EncodedKey, Session, create).
 
 insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
-           #session{type = SessionType, key_id = SessionKeyId} = Session,
+           #session{type = SessionType,
+                    fingerprint = SessionFingerprint} = Session,
            Mode) ->
     case keydir_pgp:decode_key(EncodedKey) of
-        {ok, #{<<"keyId">> := EncodedKeyId,
-               <<"fingerprint">> := EncodedFingerprint,
-               <<"userIds">> := UserIds,
-               <<"userAttributes">> := UserAttributes}} ->
-            KeyId = base64:decode(EncodedKeyId),
-            Fingerprint = base64:decode(EncodedFingerprint),
-            ActualKeyId = extract_key_id(SessionKeyId, KeyId),
-            ActualNym = extract_nym(UserIds, UserAttributes),            
+        {ok, #keydir_key{given_name = GivenName,
+                         personal_number = PersonalNumber} = Key} ->
+            ok = assert_session(SessionFingerprint, Key),
             case SessionType of
                 {password, Password} ->
-                    case keydir_pgp:user_attribute_values(
-                           [?GIVEN_NAME_ATTRIBUTE,
-                            ?PERSONAL_NUMBER_ATTRIBUTE], UserAttributes) of
-                        [undefined, undefined] ->
-                            Key =
-                                #keydir_key{
-                                   key_id = ActualKeyId,
-                                   fingerprint = Fingerprint,
-                                   user_ids = UserIds,
-                                   nym = ActualNym, 
-                                   password = Password,
-                                   verified = false},
+                    case {GivenName, PersonalNumber} of
+                        {undefined, undefined} ->
+                            FinalKey =
+                                Key#keydir_key{password = Password,
+                                               verified = false},
                             store_key(
                               DataDir, SessionDb, KeydirDb, Session, Mode,
-                              EncodedKey, Key);
-                        [_, _] ->
+                              EncodedKey, FinalKey);
+                        _ ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   <<"User Attributes of type GIVEN-NAME/129 "
-                                     "and PERSONAL-NUMBER/130 must *not* be "
-                                     "specified">>}}
+                                   <<"MIXMESH-GIVEN-NAME and "
+                                     "MIXMESH-PERSONAL-NUMBER User IDs must "
+                                     "*not* be specified">>}}
                     end;
-                {bank_id, {complete, GivenName, PersonalNumber}} ->
-                    case keydir_pgp:user_attribute_values(
-                           [?GIVEN_NAME_ATTRIBUTE,
-                            ?PERSONAL_NUMBER_ATTRIBUTE], UserAttributes) of
-                        [_GivenName, undefined] ->
+                {bank_id, {complete, BankIdGivenName, BankIdPersonalNumber}} ->
+                    case {GivenName, PersonalNumber} of
+                        {_, undefined} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   "A User Attribute of type "
-                                   "PERSONAL-NUMBER/130 *must* be specified"}};
-                        [undefined, PersonalNumber] ->
-                            Key =
-                                #keydir_key{
-                                   key_id = ActualKeyId,
-                                   fingerprint = Fingerprint,
-                                   user_ids = UserIds,
-                                   nym = ActualNym, 
-                                   given_name = undefined,
-                                   personal_number = PersonalNumber,
-                                   verified = true},
+                                   <<"A MIXMESH-PERSONAL-NUMBER User ID *must* "
+                                     "be specified">>}};
+                        {undefined, BankIdPersonalNumber} ->
+                            FinalKey = Key#keydir_key{verified = true},
                             store_key(
                               DataDir, SessionDb, KeydirDb, Session, Mode,
-                              EncodedKey, Key);
-                        [GivenName, PersonalNumber] ->
-                            Key =
-                                #keydir_key{
-                                   key_id = ActualKeyId,
-                                   fingerprint = Fingerprint,
-                                   user_ids = UserIds,
-                                   nym = ActualNym, 
-                                   given_name = GivenName,
-                                   personal_number = PersonalNumber,
-                                   verified = true},
+                              EncodedKey, FinalKey);
+                        {BankIdGivenName, BankIdPersonalNumber} ->
+                            FinalKey = Key#keydir_key{verified = true},
                             store_key(
                               DataDir, SessionDb, KeydirDb, Session, Mode,
-                              EncodedKey, Key);
-                        [GivenName, _MismatchedPersonalNumber] ->
+                              EncodedKey, FinalKey);
+                        {BankIdGivenName, _} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   "The User Attribute of type "
-                                   "PERSONAL-NUMBER/130 does not match login "
-                                   "credentials"}};
-                        [_MismatchedGivenName, PersonalNumber] ->
+                                   <<"The MIXMESH-PERSONAL-NUMBER User ID does "
+                                     "*not* match the login credentials">>}};
+                        {_, BankIdPersonalNumber} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   "The User Attribute of type "
-                                   "GIVEN-NAME/129 does not match login "
-                                   "credentials"}}
+                                   <<"The MIXMESH-GIVEN-NAME User ID does "
+                                     "*not* match the login credentials">>}}
                     end
             end;
         {error, Reason} ->
@@ -596,57 +603,41 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
             {json, 400, #{<<"errorMessage">> => <<"Invalid key">>}}
     end.
 
-extract_key_id(undefined, KeyId) ->
-    KeyId;
-extract_key_id(KeyId, KeyId) ->
-    KeyId;
-extract_key_id(_SessionKeyId, _KeyId) ->
-    throw({response, {json, 401,
-                      #{<<"errorMessage">> =>
-                            <<"Key ID does not match login credentials">>}}}).
-
-extract_nym(UserIds, UserAttributes) ->
-    case UserIds of
-        [] ->
-            case keydir_pgp:user_attribute_values(
-                   [?NYM_ATTRIBUTE], UserAttributes) of
-                [NymAttribute] ->
-                    NymAttribute;
-                [] ->
-                    throw(
-                      {response,
-                       {json, 400,
-                        #{<<"errorMessage">> =>
-                              "A User ID or a User Attribute of type NYM/128 "
-                              "*must* be specified"}}})
-            end;
-        [UserId|_] ->
-            UserId
-    end.
+assert_session(undefined, _Key) ->
+    ok;
+assert_session(Fingerprint, #keydir_key{fingerprint = Fingerprint}) ->
+    ok;
+assert_session(_SessionFingerprint, _Key) ->
+    throw({response,
+           {json, 401,
+            #{<<"errorMessage">> =>
+                  <<"Fingerprint does not match login credentials">>}}}).
 
 store_key(DataDir, SessionDb, KeydirDb, Session, create, EncodedKey,
-          #keydir_key{key_id = KeyId} = Key) ->
+          #keydir_key{fingerprint = Fingerprint} = Key) ->
     case keydir_create(KeydirDb, Key) of
         ok when Session == undefined ->
-            ok = write_key(DataDir, EncodedKey, KeyId),
+            ok = write_key(DataDir, EncodedKey, Fingerprint),
             200;
         ok ->
-            true = session_insert(SessionDb, Session#session{key_id = KeyId}),
-            ok = write_key(DataDir, EncodedKey, KeyId),
+            true = session_insert(
+                     SessionDb, Session#session{fingerprint = Fingerprint}),
+            ok = write_key(DataDir, EncodedKey, Fingerprint),
             200;
         {error, already_exists} ->
             {json, 303, #{<<"errorMessage">> => <<"Key already exists">>}}
     end;
 store_key(DataDir, SessionDb, KeydirDb, Session, update, EncodedKey,
-          #keydir_key{key_id = KeyId} = Key) ->
+          #keydir_key{fingerprint = Fingerprint} = Key) ->
     ok = keydir_update(KeydirDb, Key),
-    true = session_insert(SessionDb, Session#session{key_id = KeyId}),
-    ok = write_key(DataDir, EncodedKey, KeyId),
+    true = session_insert(
+             SessionDb, Session#session{fingerprint = Fingerprint}),
+    ok = write_key(DataDir, EncodedKey, Fingerprint),
     200.
 
-write_key(DataDir, EncodedKey, KeyId) ->
-    EncodedKeyId = base64:encode(KeyId),
-    KeyFilename = filename:join([DataDir, EncodedKeyId]),
+write_key(DataDir, EncodedKey, Fingerprint) ->
+    EncodedFingerprint = base64:encode(Fingerprint),
+    KeyFilename = filename:join([DataDir, EncodedFingerprint]),
     file:write_file(KeyFilename, EncodedKey).
 
 %%
@@ -657,7 +648,8 @@ matching_keys([]) ->
     [];
 matching_keys([Key|Rest]) ->
     [set_if_defined(
-       #{<<"keyId">> => base64:encode(Key#keydir_key.key_id),
+       #{<<"keyId">> => base64:encode(
+                          fingerprint_to_key_id(Key#keydir_key.fingerprint)),
          <<"fingerprint">> => base64:encode(Key#keydir_key.fingerprint),
          <<"userIds">> => Key#keydir_key.user_ids,
          <<"nym">> => Key#keydir_key.nym,
@@ -687,42 +679,19 @@ update_key(DataDir, SessionDb, KeydirDb, EncodedKey, Session) ->
 
 create_hkp_key(DataDir, KeydirDb, EncodedKey) ->
     case keydir_pgp:decode_key(EncodedKey) of
-        {ok, #{<<"keyId">> := EncodedKeyId,
-               <<"fingerprint">> := Fingerprint,
-               <<"userIds">> := UserIds,
-               <<"userAttributes">> := UserAttributes}} ->
-            KeyId = base64:decode(EncodedKeyId),
-            ActualNym = extract_nym(UserIds, UserAttributes),
-            case keydir_pgp:user_attribute_values(
-                   [?GIVEN_NAME_ATTRIBUTE,
-                    ?PERSONAL_NUMBER_ATTRIBUTE], UserAttributes) of
-                [undefined, undefined] ->
-                    Key =
-                        #keydir_key{
-                           key_id = KeyId,
-                           fingerprint = Fingerprint,
-                           user_ids = UserIds,
-                           nym = ActualNym, 
-                           verified = false},
-                    store_key(
-                      DataDir, undefined, KeydirDb, undefined, create,
-                      EncodedKey, Key);
-                [_, _] ->
-                    {json, 400,
-                     #{<<"errorMessage">> =>
-                           <<"User Attributes of type GIVEN-NAME/129 and "
-                             "PERSONAL-NUMBER/130 must *not* be specified">>}}
-            end;
+        {ok, #keydir_key{given_name = undefined,
+                         personal_number = undefined} = Key} ->
+            store_key(
+              DataDir, undefined, KeydirDb, undefined, create, EncodedKey, Key);
+        {ok, _} ->
+            {json, 400,
+             #{<<"errorMessage">> =>
+                   <<"MIXMESH-GIVEN-NAME and MIXMESH-PERSONAL-NUMBER User IDs "
+                     "must *not* be specified">>}};
         {error, Reason} ->
 	    ?error_log({invalid_key, EncodedKey, Reason}),
             {json, 400, #{<<"errorMessage">> => <<"Invalid key">>}}
     end.
-%%
-%% Exported: bin_to_hexstr
-%%
-
-bin_to_hexstr(Bin) ->
-    lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- ?b2l(Bin)]).
 
 %%
 %% Session database primitives
@@ -740,15 +709,6 @@ session_lookup(SessionDb, SessionTicket) ->
 session_delete(SessionDb, SessionTicket) ->
     ets:delete(SessionDb, SessionTicket).
 
-purge_sessions(SessionDb) ->
-    Now = erlang:system_time(seconds),
-    NumDeleted =
-        ets:select_delete(
-          SessionDb, [{#session{valid_until = '$1'},
-                       [{'/=', '$1', undefined}, {'>', Now, '$1'}],
-                       [true]}]),
-    ?dbg_log({purged_sessions, NumDeleted}).
-
 %%
 %% Keydir database primitives
 %%
@@ -757,37 +717,19 @@ new_keydir_db(KeydirDir) ->
     File = filename:join([KeydirDir, ?MODULE]),
     {ok, FileDb} =
         dets:open_file(
-          ?MODULE, [{file, ?b2l(File)}, {keypos, #keydir_key.key_id}]),
-    Db = ets:new(?MODULE, [public, {keypos, #keydir_key.key_id}]),
+          ?MODULE, [{file, ?b2l(File)}, {keypos, #keydir_key.fingerprint}]),
+    Db = ets:new(?MODULE, [public, {keypos, #keydir_key.fingerprint}]),
     Db = dets:to_ets(FileDb, Db),
     {Db, FileDb}.
 
 keydir_create({Db, FileDb}, Key) ->
-    case ets:lookup(Db, Key#keydir_key.key_id) of
+    case ets:lookup(Db, Key#keydir_key.fingerprint) of
         [] ->
             keydir_update({Db, FileDb}, Key);
         [_] ->
             {error, already_exists}
     end.
 
-keydir_read({Db, _FileDb}, {key_id, KeyId}) ->
-    ets:lookup(Db, KeyId);
-keydir_read({Db, _FileDb}, #{key_id := KeyId,
-                             fingerprint := undefined,
-                             user_id := undefined,
-                             nym := undefined,
-                             given_name := undefined,
-                             personal_number := undefined,
-                             verified := Verified})
-  when KeyId /= undefined ->
-    case ets:lookup(Db, KeyId) of
-        [#keydir_key{verified = Verified} = Key] ->
-            [Key];
-        [Key] when Verified == undefined ->
-            [Key];
-        _ ->
-            []
-    end;
 keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
                              fingerprint := FingerprintFilter,
                              user_id := UserIdFilter,
@@ -796,16 +738,13 @@ keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
                              personal_number := PersonalNumberFilter,
                              verified := VerifiedFilter}) ->
     ets:foldl(fun(#keydir_key{
-                     key_id = KeyId,
                      fingerprint = Fingerprint,
                      user_ids = UserIds,
                      nym = Nym,
                      given_name = GivenName,
                      personal_number = PersonalNumber,
                      verified = Verified} = Key, Acc)
-                    when (KeyIdFilter == undefined orelse
-                          KeyIdFilter == KeyId) andalso
-                         (FingerprintFilter == undefined orelse
+                    when (FingerprintFilter == undefined orelse
                           FingerprintFilter == Fingerprint) andalso
                          (NymFilter == undefined orelse
                           NymFilter == Nym) andalso
@@ -815,18 +754,47 @@ keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
                           PersonalNumberFilter == PersonalNumber) andalso
                          (VerifiedFilter == undefined orelse
                           VerifiedFilter == Verified) ->
-                      case UserIdFilter of
-                          undefined ->
+                      MatchingKeyIdFilter =
+                          case KeyIdFilter of
+                              undefined ->
+                                  true;
+                              _ ->
+                                  fingerprint_to_key_id(Fingerprint) ==
+                                      KeyIdFilter
+                          end,
+                      if
+                          MatchingKeyIdFilter andalso
+                          UserIdFilter == undefined ->
                               [Key|Acc];
-                          _ ->
+                          MatchingKeyIdFilter ->
                               case lists:member(UserIdFilter, UserIds) of
                                   true ->
                                       [Key|Acc];
                                   false ->
                                       Acc
-                              end
+                              end;
+                          true ->
+                              Acc
                       end;
                  (_Key, Acc) ->
+                      Acc
+              end, [], Db);
+keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter}) ->
+    ets:lookup(Db, FingerprintFilter);
+keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter}) ->
+    ets:foldl(fun(#keydir_key{fingerprint = Fingerprint} = Key, Acc) ->
+                      case fingerprint_to_key_id(Fingerprint) of
+                          KeyIdFilter ->
+                              [Key|Acc];
+                          _ ->
+                              Acc
+                      end
+              end, [], Db);
+keydir_read({Db, _FileDb}, #{nym := NymFilter}) ->
+    ets:foldl(fun(#keydir_key{nym = Nym} = Key, Acc)
+                    when NymFilter == Nym ->
+                      [Key|Acc];
+                 (_, Acc) ->
                       Acc
               end, [], Db).
 
@@ -834,9 +802,9 @@ keydir_update({Db, FileDb}, Key) ->
     true = ets:insert(Db, Key),
     dets:insert(FileDb, Key).
 
-keydir_delete({Db, FileDb}, KeyId) ->
-    true = ets:delete(Db, KeyId),
-    dets:delete(FileDb, KeyId).
+keydir_delete({Db, FileDb}, Fingerprint) ->
+    true = ets:delete(Db, Fingerprint),
+    dets:delete(FileDb, Fingerprint).
 
 %%
 %% Network marshalling tools
