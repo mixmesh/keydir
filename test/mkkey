@@ -40,18 +40,18 @@ fi
 for uid in $*; do
     gpg --no-default-keyring --keyring ${temp_key} --quick-adduid ${first_uid} ${uid}
     if [ $? -ne 0 ]; then
-       quit "Can not create User ID ${uid}" 3 
+       quit "Can not create User ID" 3 
     fi
 done
 
 gpg --no-default-keyring --keyring ${temp_key} --list-keys
 if [ $? -ne 0 ]; then
-   quit "Can not list generate key" 4 
+   quit "Can not list generated key" 4 
 fi
 
 gpg --no-default-keyring --keyring ${temp_key} --armor --export > ${key_file}
 if [ $? -ne 0 ]; then
-   quit "Can not generate an armored key in ${first_uid}.key" 5
+   quit "Can not generate an armored key" 5
 fi
 
 echo "${key_file} has been created"
