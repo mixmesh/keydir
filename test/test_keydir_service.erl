@@ -56,8 +56,8 @@ start(LoginMode) ->
     
     FredFingerprint = <<"fingerprint-fred">>,
     EncodedFredFingerprint = base64:encode(FredFingerprint),
-    %FredKeyId = keydir_service:fingerprint_to_key_id(FredFingerprint),
-    %EncodedFredKeyId = base64:encode(FredKeyId),
+    %%FredKeyId = keydir_service:fingerprint_to_key_id(FredFingerprint),
+    %%EncodedFredKeyId = base64:encode(FredKeyId),
     FredKey =
         base64:encode(
           jsone:encode(

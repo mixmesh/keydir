@@ -1,0 +1,59 @@
+#/bin/sh
+
+if [ $# -lt 2 ]; then
+    >&2 echo "$0 <KEY-FILE> <UID> ..."
+    exit 1
+fi
+
+temp_batch=$(mktemp /tmp/batch.XXXXXXXXX)
+temp_key=$(mktemp /tmp/key.XXXXXXXXX)
+key_file=$1
+first_uid=$2
+shift 2
+
+quit () {
+    >&2 echo $1
+    rm -f ${temp_batch} ${temp_key} ${key_file}
+    exit $2
+}
+
+cat << EOF > ${temp_batch}
+# https://www.gnupg.org/documentation/manuals/gnupg/Unattended-GPG-key-generation.html
+%echo Generating ${temp_key}
+%pubring ${temp_key}
+%no-protection
+Key-Type: RSA
+Key-Length: 1024
+Subkey-Type: ELG
+Subkey-Length: 1024
+Name-Real: ${first_uid}
+Expire-Date: 365d
+%commit
+%echo ${temp_file} has been generated
+EOF
+
+gpg --batch --generate-key ${temp_batch}
+if [ $? -ne 0 ]; then
+   quit "Can not generate initial key" 2 
+fi
+
+for uid in $*; do
+    gpg --no-default-keyring --keyring ${temp_key} --quick-adduid ${first_uid} ${uid}
+    if [ $? -ne 0 ]; then
+       quit "Can not create User ID ${uid}" 3 
+    fi
+done
+
+gpg --no-default-keyring --keyring ${temp_key} --list-keys
+if [ $? -ne 0 ]; then
+   quit "Can not list generate key" 4 
+fi
+
+gpg --no-default-keyring --keyring ${temp_key} --armor --export > ${key_file}
+if [ $? -ne 0 ]; then
+   quit "Can not generate an armored key in ${first_uid}.key" 5
+fi
+
+echo "${key_file} has been created"
+rm -f ${temp_batch} ${temp_key}
+exit 0
