@@ -29,7 +29,7 @@ Subkey-Length: 1024
 Name-Real: ${first_uid}
 Expire-Date: 365d
 %commit
-%echo ${temp_file} has been generated
+%echo ${temp_key} has been generated
 EOF
 
 gpg --batch --generate-key ${temp_batch}
