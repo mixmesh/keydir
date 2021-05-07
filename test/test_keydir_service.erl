@@ -2,6 +2,7 @@
 -export([start/0, start/1]).
 -export([password_login/1, bank_id_login/1]).
 
+-include_lib("apptools/include/shorthand.hrl").
 -include("../include/keydir_service.hrl").
 
 -define(PASSWORD, <<"mortuta42">>).
@@ -11,59 +12,38 @@ start() ->
     start(password).
 
 start(LoginMode) ->
-    AliceFingerprint = <<"fingerprint-alice">>,
-    EncodedAliceFingerprint = base64:encode(AliceFingerprint),
-    AliceKeyId = keydir_service:fingerprint_to_key_id(AliceFingerprint),
-    EncodedAliceKeyId = base64:encode(AliceKeyId),
-    AliceKey =
+    AliceKeyFilename =
         case LoginMode of
             password ->
-                base64:encode(
-                  jsone:encode(
-                    #{<<"fingerprint">> => EncodedAliceFingerprint,
-                      <<"userIds">> => [<<"alice">>]}));
+                "alice.key";
             bank_id ->
-                base64:encode(
-                  jsone:encode(
-                    #{<<"fingerprint">> => EncodedAliceFingerprint,
-                      <<"userIds">> =>
-                          [<<"alice">>,
-                           keydir_pgp:personal_number_user_id(
-                             ?PERSONAL_NUMBER)]}))
+                "alice-bank-id.key"
         end,
     
-    BobFingerprint = <<"fingerprint-bob">>,
-    EncodedBobFingerprint = base64:encode(BobFingerprint),
-    %%BobKeyId = keydir_service:fingerprint_to_key_id(BobFingerprint),
-    %%EncodedBobKeyId = base64:encode(BobKeyId),
-    BobKey =
-        base64:encode(
-          jsone:encode(
-            #{<<"fingerprint">> => EncodedBobFingerprint,
-              <<"userIds">> => [keydir_pgp:nym_user_id(<<"bob">>)]})),
-
-    ChuckFingerprint = <<"fingerprint-chuck">>,
-    EncodedChuckFingerprint = base64:encode(ChuckFingerprint),
-    ChuckKeyId = keydir_service:fingerprint_to_key_id(ChuckFingerprint),
-    EncodedChuckKeyId = base64:encode(ChuckKeyId),
-    ChuckKey =
-        base64:encode(
-          jsone:encode(
-            #{<<"fingerprint">> => EncodedChuckFingerprint,
-              <<"userIds">> => [<<"alice">>,
-                                <<"bob">>,
-                                keydir_pgp:nym_user_id(<<"alice">>)]})),
+    {ok, AliceKey} = file:read_file(AliceKeyFilename),
+    {_AliceFingerprint, EncodedAliceFingerprint,
+     AliceKeyId, EncodedAliceKeyId,
+     _AliceNym} =
+        key_extract(AliceKey),
     
-    FredFingerprint = <<"fingerprint-fred">>,
-    EncodedFredFingerprint = base64:encode(FredFingerprint),
-    %%FredKeyId = keydir_service:fingerprint_to_key_id(FredFingerprint),
-    %%EncodedFredKeyId = base64:encode(FredKeyId),
-    FredKey =
-        base64:encode(
-          jsone:encode(
-            #{<<"fingerprint">> => EncodedFredFingerprint,
-              <<"userIds">> => [keydir_pgp:nym_user_id(<<"fred">>)]})),
-
+    {ok, BobKey} = file:read_file("bob.key"),
+    {_BobFingerprint, EncodedBobFingerprint,
+     _BobKeyId, _EncodedBobKeyId,
+     _BobNym} =
+        key_extract(BobKey),
+    
+    {ok, ChuckKey} = file:read_file("chuck.key"),
+    {_ChuckFingerprint, EncodedChuckFingerprint,
+     _ChuckKeyId, EncodedChuckKeyId,
+     _ChuckNym} =
+        key_extract(ChuckKey),
+    
+    {ok, FredKey} = file:read_file("fred.key"),
+    {_FredFingerprint, _EncodedFredFingerprint,
+     _FredKeyId, _EncodedFredKeyId,
+     _FredNym} =
+        key_extract(FredKey),
+    
     %%
     io:format("**** Read a non-exsting key (should fail)\n"),
     {ok, 404, #{<<"errorMessage">> := <<"No such key">>}} =
@@ -82,14 +62,13 @@ start(LoginMode) ->
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => BobSessionTicket,
                     <<"key">> => AliceKey}),
-
     %%
     io:format("**** Create Bob's key\n"),
     {ok, 200} =
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => BobSessionTicket,
                     <<"key">> => BobKey}),
-    
+
     %%
     io:format("**** Login as Chuck\n"),
     {ok, ChuckSessionTicket} = password_login(EncodedChuckFingerprint),
@@ -115,6 +94,9 @@ start(LoginMode) ->
 
     %%
     io:format("**** Login as Alice\n"),
+
+
+
     {ok, AliceSessionTicket} =
         case LoginMode of
             password ->
@@ -161,15 +143,15 @@ start(LoginMode) ->
           #{<<"userId">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedChuckFingerprint,
-               <<"keyId">> := EncodedChuckKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>,<<"bob">>],
-               <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedAliceFingerprint,
+            [#{<<"fingerprint">> := EncodedAliceFingerprint,
                <<"keyId">> := EncodedAliceKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>],
+               <<"verified">> := false},
+             #{<<"fingerprint">> := EncodedChuckFingerprint,
+               <<"keyId">> := EncodedChuckKeyId,
+               <<"nym">> := <<"alice">>,
+               <<"userIds">> := [<<"alice">>,<<"bob">>],
                <<"verified">> := false}] =
                 lists:sort(MatchingUserIdAliceKeys);
         bank_id ->
@@ -205,15 +187,15 @@ start(LoginMode) ->
           #{<<"nym">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedChuckFingerprint,
-               <<"keyId">> := EncodedChuckKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>,<<"bob">>],
-               <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedAliceFingerprint,
+            [#{<<"fingerprint">> := EncodedAliceFingerprint,
                <<"keyId">> := EncodedAliceKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>],
+               <<"verified">> := false},
+             #{<<"fingerprint">> := EncodedChuckFingerprint,
+               <<"keyId">> := EncodedChuckKeyId,
+               <<"nym">> := <<"alice">>,
+               <<"userIds">> := [<<"alice">>,<<"bob">>],
                <<"verified">> := false}] =
                 lists:sort(MatchingNymAliceKeys);
         bank_id ->
@@ -239,8 +221,8 @@ start(LoginMode) ->
     io:format("**** Read Alice's key using HKP\n"),
     {ok, 200, AliceKey} =
         http_get("https://127.0.0.1:4436/pks/lookup?op=get&search=0x" ++
-                     keydir_service:bin_to_hexstr(AliceKeyId)),
-
+                     ?b2l(keydir_service:bin_to_hexstr(AliceKeyId))),
+                 
     %%
     io:format("**** Create Fred's key using HKP\n"),
     {ok, 200} = http_post("https://127.0.0.1:4436/pks/add", FredKey),
@@ -365,3 +347,12 @@ http_post(Url, Body) ->
         {error, Reason} ->
             {error, Reason}
     end.
+
+key_extract(ArmoredKey) ->
+    {ok, #keydir_key{fingerprint = Fingerprint,
+                     nym = Nym}} = keydir_pgp:decode_key(ArmoredKey),
+    KeyId = pgp_parse:key_id(Fingerprint),
+    {Fingerprint, keydir_service:bin_to_hexstr(Fingerprint),
+     KeyId, base64:encode(KeyId),
+     Nym}.
+

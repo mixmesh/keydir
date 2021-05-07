@@ -1,5 +1,5 @@
 -module(keydir_service).
--export([start_link/4, bin_to_hexstr/1, fingerprint_to_key_id/1]).
+-export([start_link/4, bin_to_hexstr/1, hexstr_to_bin/1]).
 -export([purge_sessions/1, handle_http_request/4]).
 -export_type([key_id/0, user_id/0, nym/0, password/0]).
 
@@ -53,18 +53,27 @@ start_link(Address, Port, CertFilename, DataDir) ->
     rester_http_server:start_link(Port, ResterHttpArgs).
 
 %%
-%% Exported: bin_to_hexstr (used by test suite)
+%% Exported: bin_to_hexstr
 %%
 
 bin_to_hexstr(Bin) ->
-    lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- ?b2l(Bin)]).
+    ?l2b([io_lib:format("~2.16.0B", [X]) || X <- ?b2l(Bin)]).
 
 %%
-%% Exported: fingerprint_to_key_id (used by test suite)
+%% Exported: hexstr_to_bin
 %%
 
-fingerprint_to_key_id(Fingerprint) ->
-    binary:part(Fingerprint, {byte_size(Fingerprint), -8}).
+hexstr_to_bin(Bin) ->
+    hexstr_to_bin(?b2l(Bin), []).
+
+hexstr_to_bin([], Acc) ->
+    ?l2b(lists:reverse(Acc));
+hexstr_to_bin([X,Y|T], Acc) ->
+    {ok, [V], []} = io_lib:fread("~16u", [X, Y]),
+    hexstr_to_bin(T, [V|Acc]);
+hexstr_to_bin([X|T], Acc) ->
+    {ok, [V], []} = io_lib:fread("~16u", lists:flatten([X, "0"])),
+    hexstr_to_bin(T, [V|Acc]).
 
 %%
 %% Exported: purge_sessions (only used internally)
@@ -118,11 +127,11 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                 {value, {_, "get"}} ->
                     case lists:keysearch("search", 1, ParsedQueryString) of
                         {value, {_, "0x" ++ KeyIdHexString}} ->
-                            KeyId = hexstr_to_bin(KeyIdHexString),
+                            KeyId = hexstr_to_bin(?l2b(KeyIdHexString)),
                             case keydir_read(KeydirDb, #{key_id => KeyId}) of
                                 [#keydir_key{fingerprint = Fingerprint}] ->
                                     EncodedFingerprint =
-                                        base64:encode(Fingerprint),
+                                        bin_to_hexstr(Fingerprint),
                                     KeyFilename =
                                         filename:join(
                                           [DataDir, EncodedFingerprint]),
@@ -146,7 +155,7 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                 {value, {_, Op}} when Op == "index" orelse Op == "vindex" ->
                     case lists:keysearch("search", 1, ParsedQueryString) of
                         {value, {_, "0x" ++ KeyIdHexString}} ->
-                            KeyId = hexstr_to_bin(KeyIdHexString),
+                            KeyId = hexstr_to_bin(?l2b(KeyIdHexString)),
                             Keys = keydir_read(KeydirDb, #{key_id => KeyId}),
                             {json, 200, #{<<"keys">> => matching_keys(Keys)}};
                         {value, {_, Text}} ->
@@ -175,7 +184,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                       JsonValue,
                       [{<<"fingerprint">>, fun erlang:is_binary/1},
                        {<<"password">>, fun erlang:is_binary/1}]),
-                Fingerprint = base64:decode(EncodedFingerprint),
+                Fingerprint = hexstr_to_bin(EncodedFingerprint),
                 case keydir_read(KeydirDb, #{fingerprint => Fingerprint}) of
                     [] ->
                         start_password_session(
@@ -202,7 +211,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                       JsonValue,
                       [{<<"fingerprint">>, fun erlang:is_binary/1},
                        {<<"personalNumber">>, fun erlang:is_binary/1}]),
-                Fingerprint = base64:decode(EncodedFingerprint),
+                Fingerprint = hexstr_to_bin(EncodedFingerprint),
                 case keydir_read(KeydirDb, #{fingerprint => Fingerprint}) of
                     [] ->
                         start_bank_id_session(
@@ -396,8 +405,20 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                        {<<"personalNumber">>, fun erlang:is_binary/1,
                         undefined},
                        {<<"verified">>, fun erlang:is_boolean/1, undefined}]),
-                KeyId = conditional_base64_decode(EncodedKeyId),
-                Fingerprint = conditional_base64_decode(EncodedFingerprint),
+                KeyId =
+                    case EncodedKeyId of
+                        undefined ->
+                            undefined;
+                        _ ->
+                            base64:decode(EncodedKeyId)
+                    end,
+                Fingerprint =
+                    case EncodedFingerprint of
+                        undefined ->
+                            undefined;
+                        _ ->
+                            hexstr_to_bin(EncodedFingerprint)
+                    end,
                 case keydir_read(KeydirDb,
                                  #{key_id => KeyId,
                                    fingerprint => Fingerprint,
@@ -464,7 +485,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                       [{<<"sessionTicket">>, fun erlang:is_binary/1},
                        {<<"fingerprint">>,  fun erlang:is_binary/1}]),
                 SessionTicket = base64:decode(EncodedSessionTicket),
-                Fingerprint = base64:decode(EncodedFingerprint),
+                Fingerprint = hexstr_to_bin(EncodedFingerprint),
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{fingerprint = Fingerprint}] ->
                         ok = keydir_delete(KeydirDb, Fingerprint),
@@ -636,7 +657,7 @@ store_key(DataDir, SessionDb, KeydirDb, Session, update, EncodedKey,
     200.
 
 write_key(DataDir, EncodedKey, Fingerprint) ->
-    EncodedFingerprint = base64:encode(Fingerprint),
+    EncodedFingerprint = bin_to_hexstr(Fingerprint),
     KeyFilename = filename:join([DataDir, EncodedFingerprint]),
     file:write_file(KeyFilename, EncodedKey).
 
@@ -649,8 +670,8 @@ matching_keys([]) ->
 matching_keys([Key|Rest]) ->
     [set_if_defined(
        #{<<"keyId">> => base64:encode(
-                          fingerprint_to_key_id(Key#keydir_key.fingerprint)),
-         <<"fingerprint">> => base64:encode(Key#keydir_key.fingerprint),
+                          pgp_parse:key_id(Key#keydir_key.fingerprint)),
+         <<"fingerprint">> => bin_to_hexstr(Key#keydir_key.fingerprint),
          <<"userIds">> => Key#keydir_key.user_ids,
          <<"nym">> => Key#keydir_key.nym,
          <<"verified">> => Key#keydir_key.verified},
@@ -759,7 +780,7 @@ keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
                               undefined ->
                                   true;
                               _ ->
-                                  fingerprint_to_key_id(Fingerprint) ==
+                                  pgp_parse:key_id(Fingerprint) ==
                                       KeyIdFilter
                           end,
                       if
@@ -783,7 +804,7 @@ keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter}) ->
     ets:lookup(Db, FingerprintFilter);
 keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter}) ->
     ets:foldl(fun(#keydir_key{fingerprint = Fingerprint} = Key, Acc) ->
-                      case fingerprint_to_key_id(Fingerprint) of
+                      case pgp_parse:key_id(Fingerprint) of
                           KeyIdFilter ->
                               [Key|Acc];
                           _ ->
@@ -915,23 +936,3 @@ default_phrase(502) -> "Bad Gateway";
 default_phrase(503) -> "Service Unavailable";
 default_phrase(504) -> "Gateway Time-out";
 default_phrase(505) -> "HTTP Version not supported".
-
-%%
-%% Misc utilities
-%%
-
-hexstr_to_bin(S) ->
-    hexstr_to_bin(S, []).
-hexstr_to_bin([], Acc) ->
-    ?l2b(lists:reverse(Acc));
-hexstr_to_bin([X,Y|T], Acc) ->
-    {ok, [V], []} = io_lib:fread("~16u", [X, Y]),
-    hexstr_to_bin(T, [V|Acc]);
-hexstr_to_bin([X|T], Acc) ->
-    {ok, [V], []} = io_lib:fread("~16u", lists:flatten([X, "0"])),
-    hexstr_to_bin(T, [V|Acc]).
-
-conditional_base64_decode(undefined) ->
-    undefined;
-conditional_base64_decode(Bin) ->
-    base64:decode(Bin).

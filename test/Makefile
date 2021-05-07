@@ -1,6 +1,6 @@
 #@BEGIN-TEST-DEFAULT-RULES@
 ERLC=$(shell which erlc)
-ERLC_FLAGS=-Werror -I ../.. +debug_info -Ddebug
+ERLC_FLAGS=-I ../.. +debug_info -Ddebug
 ERL_HEADERS=$(wildcard *.hrl) $(wildcard ../../*/include/*.hrl)
 ERL_SOURCES=$(wildcard *.erl)
 ERL_OBJECTS=$(ERL_SOURCES:%.erl=%.beam)
@@ -18,13 +18,13 @@ alice-bank-id.key:
 	./mkkey alice-bank-id.key alice "MIXMESH-PERSONAL-NUMBER:201701012393"
 
 bob.key:
-	./mkkey bob.key "NYM:bob"
+	./mkkey bob.key "MIXMESH-NYM:bob"
 
 chuck.key:
-	./mkkey chuck.key alice bob "NYM:alice"
+	./mkkey chuck.key alice bob "MIXMESH-NYM:alice"
 
 fred.key:
-	./mkkey fred.key "NYM:fred"
+	./mkkey fred.key "MIXMESH-NYM:fred"
 
 clean:
 	rm -f $(ALL_OBJECTS) *.core *.key
