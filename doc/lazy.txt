@@ -1,0 +1,101 @@
+sudo ngrep -d any -q 'HTTP'
+
+gpg --keyserver hkp://localhost:4436 --search-keys A4FF2279
+gpg --keyserver hkp://localhost:4436 --recv-keys A4FF2279
+
+gpg --delete-keys A4FF2279
+gpg --keyserver hkp://keyserver.ubuntu.com:80 --search-keys A4FF2279
+
+T 127.0.0.1:46610 -> 127.0.0.1:9050 [AP] #56
+  GET /pks/lookup?op=index&options=mr&search=0xA4FF2279 HTTP/1.0..Host: keyse
+  rver.ubuntu.com..                                                          
+
+T 127.0.0.1:9050 -> 127.0.0.1:46610 [AP] #64
+  HTTP/1.1 200 OK..Date: Mon, 10 May 2021 08:22:50 GMT..Server: Hockeypuck/~u
+  nreleased..Content-Type: text/plain..Content-Length: 315..Vary: Accept-Enco
+  ding..Connection: close....info:1:1.pub:4E1F799AA4FF2279:1:8192:1356475387:
+  :.uid:Jens Erat (born 1988-01-19 in Stuttgart, Germany):1356529606::.uid:Je
+  ns Erat <jens.erat@fsfe.org>:1356516541::.uid:Jens Erat <jens.erat@uni-kons
+  tanz.de>:1356516518::.uid:Jens Erat <jabber@jenserat.de>:1356516500::.uid:J
+  ens Erat <email@jenserat.de>:1356515853::.                                 
+
+T 127.0.0.1:46614 -> 127.0.0.1:9050 [AP] #140
+  GET /pks/lookup?op=get&options=mr&search=0x4E1F799AA4FF2279 HTTP/1.0..Host:
+   keyserver.ubuntu.com..                                                    
+
+T 127.0.0.1:9050 -> 127.0.0.1:46614 [AP] #150
+  HTTP/1.1 200 OK..Date: Mon, 10 May 2021 08:22:52 GMT..Server: Hockeypuck/~u
+  nreleased..Content-Type: text/plain..Vary: Accept-Encoding..Connection: clo
+  se....-----BEGIN PGP PUBLIC KEY BLOCK-----.Comment: Hostname: .Version: Hoc
+  keypuck ~unreleased..xsNNBFDaK/sBIADm2gjnw7aPoNIoCy7gj85btwZU+zGkvtGonznlLr
+  XELdU6zR3u.VHNCn9vAl6OoU32r+suFvGdX+7MjiPbGKwJFOvICpAVh6bV55+hdqJbS02cpPmJH
+  .1BrrUAmm6ZVEybGd+II1pTI6Mt/SAI1E/59VIBdC/1AwsxQtCTFeyaLqTdyd1FhQ.chkjcvdRH
+  Lb4cEqldAGqBL7SbiSNOP3p+vX8iwRN6PQ/erAGseawHnunuNIna+tA.t4te/MkI2uxT0KjsfF/
+  NWHCB2aXt++egP8jGSaHRsVOlfHRVA3hHcUDlnW9DZRvG.QabHFcZvfcXAlNIRYKUzDIHEwpavA
+  mHeGNhc2GNmDcDRF56741grVLNQT58vxK5o.dBLlC8ANckvE5ymdIKVPm+t5q10kFOAATcnmDV0
+  oBt+15vzI3f+88yCoY904UWdY.LwTbNMiszIB4ngNfzdLWeXPOCDs4CYa9BBKb1VkVtWn6NTE7m
+  0/urrAP3Mb9qTwz.AlBVHvDPo6BG2yVqoCVzDBNOjb7czO3cns2M8sThizD2gvdKUV5Bq7THp6M
+  FAzP0.Wbad3JLVIn65BNzVKJYhC7rGAU2QjlRbXq+P08NsewNbFC/E3fct249PM5xVl4lW.vcsq
+  Bo1o+iuHuzb7tvveht1N79n3V+pPISLj8QCb9rEI09MJ93IQbn5yuyPCgXe6./OiNyiv3QxY/x3
+  zImLiiuSurbw1E0ILyX/qm+36XVSpewduXk2yen8x+eMmLWRfS.ZhyPXHFbO8am7niF1AuZjnIf
+  hETsiyqAGmYmb9d7nL6GwCrvA7QCHrRl/EDd4r2a.Un2q6QYXQ78Wj6Ys1/jH49GkFUhBKl0PfL
+  KtKPiPwL71wb6sD6nA30Ix6hMGreZk.B1697KPVLCP4v87xyrMJFNgXC2FBKML3PlokOyrZzbXL
+  RM78yHmoBl13Tu3UZkFK.O1TV7cFzQScHMd+yBGN/AmVUF8Br2bExtuIvQqoQbj6gPIEk5xGWvG
+  zSbR9LcAng.VRUHDlOy3dUd8QuhJANPk6knHZR0OT0C5c2Wzvcznr5ros5PQ8XZFCOJTaNLfc7u
+  .9TGe/FVG3d7RMyB/9ILhS5ef3VarGzuyiYwwsC3P+w/3lHt+PhzVQRfeq0WrB+RK.3bfweIm30
+  k1g8xJuQ0mg2JmmICYL/uihWVREZNOZZPboFBV8dZec+hif1tfuqchV.qVsy3cMuhg/K/EJafVb
+  A3o59Z9IYIC3XN7NGoYYXuzbLgaDtVxGdcWTg8D4a1FaD.cEkeAR/Mm9FxVDK01itXatol/ZB0o
+  BCrYS0DLdYQ/YWrAfoqR7Av7uY+hQiwvIo3.+lVlQGsr7rlhv/oNrf2P2M5aKPOdp2vPIEqpABE
+  BAAHNMUplbnMgRXJhdCAoYm9y.biAxOTg4LTAxLTE5IGluIFN0dXR0Z2FydCwgR2VybWFueSnCw
+  3sEEwECACUCGwMG.CwkIBwMCBhUIAgkKCwQWAgMBAh4BAheABQJQ2v/GAhkBAAoJEE4feZqk/yJ
+  5XrYg.AMr4NqIV6It/io1X2Mmd/g0K3+d/gBjnyviIaKDZIFLDC95yNmssEN8FJwcJiIs+.z7o+
+  RFJo22avYXjkEPNUUOanj9GsAD+ZiJMgUeri/FKoaxSs4GG9ZyyWwObKC3cP.HFd9GAvERDByNE
+  Sbuivri3yNPyNlfzFCP/d618pAixjq5l3100gMcWjScQtq1/Ke.Q/xr0ftOI4TnreWXuCTZeU7V
+  PlPUo/Q5gQg57oEwhUG0a6sUgXpwNTROurJsAHrO.i1mUCc7yDuNI1NV850mrXxpBMC8808Q7zy
+  +Q6OUwB528YG1x/ZCqEHIfGLyd2Edr.x94umcfDXIr2ohqH6+B2+d59luo4toIAetEIF6+ryeIC
+  Hz8hoCHFzZ+nTwqP2+iY.fRzDyt5Xsry48j4Onh0COY74akHx3g6DZzTCcBQFiti8j0AxjPXkaA
+  9hApMGfkuP.eip+WiTURurqS0vi6XnWpUTLtSeYsluaEEnRPgQvdNR5aLE4ElWnPJCP+4YTt7VU
+  .ZJyj5yQUcIQBmtjTSzSWz/7wXMNkPbAuD2PryjSJlGxWp7XTHXpqzlHfHGdXk1lY.DRiZexFJe
+  gTUrKSQFkHkumQlRMKCJdbsT0NlHcXRQNPsUwcTtcaGS9+d8gQKkwdP.Gb5dHtWSO4QpJZHn61X
+  yM3cFaw+W4kUI9Zkm+w0t3aCQYDLJl7CxsfJiKiAi4h7P.ZdjE1ioBEF4U2v1hoRdpeijAgMTp2
+  pkwS1aqirv6/1vNXdDHyk/TIlKmEZRSfYbF.AlBdaWLt8U6+YeuIjQry7CT3N2e7sJ3VxLeVgSh
+  oLQz54QMza3QkeSVu7bVj9vmo.tbflRYjaHq+YOYNVychhBO40T47ivOu5R1tqaL26Xw5gLalV5
+  LC9TyCqWopqFdhU.Grw1Jaj0MFXW7DUvAdcloBu7saaS8hzqsmGyon++HKPd8jAKhrxTm0TM2ag
+  q/2Gx.sK4KyTGrcZrkXiEF27LYVPRpC6jnNmWJPw6at3lGEHbWg1tqh6AsTKf6BHxeoOEu.ZmWh
+  KEFREE/9rwQJgd7ZPYfN55IQ9o96Vfi0sMxR0BqW4yUaiKxaAy+3unK2+1E6.ah09Nv/FBeaLgg
+  ha02CwUr+djH+vegPIjUpPg/iRCCHqVPwlLx6au4JGT1LXOXLX.K3sRte6vXARLHDEyu42ID9dJ
+  dxYn4LnZbsKuZpb317EQhqigYCFtpasE70dS9CP+.HDyyQhtEFTzsq+TjZ9Hg4tuqqV872ReLcZ
+  zLZ7BfRbJ/rNf0GFMRbObH6XIpzI7U.YVvZjGDGjmucL2V180wivpsWE1SHrvM+6gSATfz9ULNE
+  qH+q7Vlchqm+qUQMeHx/.t/F50WPgSDir3lwVMYErTdnCw3sEEwECACUCGwMGCwkIBwMCBhUIAg
+  kKCwQWAgMB.Ah4BAheABQJQ2s0PAhkBAAoJEE4feZqk/yJ5GEYf/RS4CeGP2NGpLFmqlPZpfHur
+  .8T9+/3/Y5OXhZZIwtJFm8lJ52Do4jOfAILVF5Fbc6SQczk6s7SmyJAFeTJV7U4zZ.XP9PFqCNq
+  DPCyccC05avc4UqAbE7
+  
+BAJS
+
+gpg --keyserver hkp://keyserver.ubuntu.com:80 --search-keys A4FF3379
+
+T 127.0.0.1:46628 -> 127.0.0.1:9050 [AP] #44
+  GET /pks/lookup?op=index&options=mr&search=0xA4FF3379 HTTP/1.0..Host: keyse
+  rver.ubuntu.com..                                                          
+
+T 127.0.0.1:9050 -> 127.0.0.1:46628 [AP] #60
+  HTTP/1.1 404 Not Found..Date: Mon, 10 May 2021 08:25:34 GMT..Server: Hockey
+  puck/~unreleased..Content-Type: text/plain; charset=utf-8..X-Content-Type-O
+  ptions: nosniff..Content-Length: 10..Connection: close....Not Found.       
+^Cjocke@eve:~/src/github/mixmesh/keydir$ ^C
+
+BAJS
+
+gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A4FF3379
+
+T 127.0.0.1:46634 -> 127.0.0.1:9050 [AP] #45
+  GET /pks/lookup?op=get&options=mr&search=0xA4FF3379 HTTP/1.0..Host: keyserv
+  er.ubuntu.com..                                                            
+
+T 127.0.0.1:9050 -> 127.0.0.1:46634 [AP] #56
+  HTTP/1.1 404 Not Found..Date: Mon, 10 May 2021 08:26:36 GMT..Server: Hockey
+  puck/~unreleased..Content-Type: text/plain; charset=utf-8..X-Content-Type-O
+  ptions: nosniff..Content-Length: 10..Connection: close....Not Found. 
+
+

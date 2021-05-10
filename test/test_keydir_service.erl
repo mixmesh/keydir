@@ -21,31 +21,39 @@ start(LoginMode) ->
         end,
     
     {ok, AliceKey} = file:read_file(AliceKeyFilename),
-    {_AliceFingerprint, EncodedAliceFingerprint,
-     AliceKeyId, EncodedAliceKeyId,
+    {_AliceFingerprint,
+     EncodedAliceFingerprint,
+     _AliceKeyId,
+     EncodedAliceKeyId,
      _AliceNym} =
         key_extract(AliceKey),
     
     {ok, BobKey} = file:read_file("bob.key"),
-    {_BobFingerprint, EncodedBobFingerprint,
-     _BobKeyId, _EncodedBobKeyId,
+    {_BobFingerprint,
+     EncodedBobFingerprint,
+     _BobKeyId,
+     _EncodedBobKeyId,
      _BobNym} =
         key_extract(BobKey),
     
     {ok, ChuckKey} = file:read_file("chuck.key"),
-    {_ChuckFingerprint, EncodedChuckFingerprint,
-     _ChuckKeyId, EncodedChuckKeyId,
+    {_ChuckFingerprint,
+     EncodedChuckFingerprint,
+     _ChuckKeyId,
+     EncodedChuckKeyId,
      _ChuckNym} =
         key_extract(ChuckKey),
     
     {ok, FredKey} = file:read_file("fred.key"),
-    {_FredFingerprint, _EncodedFredFingerprint,
-     _FredKeyId, _EncodedFredKeyId,
+    {_FredFingerprint,
+     _EncodedFredFingerprint,
+     _FredKeyId,
+     _EncodedFredKeyId,
      _FredNym} =
         key_extract(FredKey),
     
     %%
-    io:format("**** Read a non-exsting key (should fail)\n"),
+    io:format("**** Read a non-existing key (should fail)\n"),
     {ok, 404, #{<<"errorMessage">> := <<"No such key">>}} =
         json_post(
           "https://127.0.0.1:4436/read",
@@ -68,7 +76,7 @@ start(LoginMode) ->
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => BobSessionTicket,
                     <<"key">> => BobKey}),
-
+    
     %%
     io:format("**** Login as Chuck\n"),
     {ok, ChuckSessionTicket} = password_login(EncodedChuckFingerprint),
@@ -79,24 +87,21 @@ start(LoginMode) ->
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => ChuckSessionTicket,
                     <<"key">> => ChuckKey}),
-
+    
     %%
     io:format("**** Logout Bob\n"),
     {ok, 200} =
         json_post("https://127.0.0.1:4436/logout",
                   #{<<"sessionTicket">> => BobSessionTicket}),
-
+    
     %%
     io:format("**** Logout Bob again (should fail)\n"),
     {ok, 403, #{<<"errorMessage">> := <<"No such session">>}} =
         json_post("https://127.0.0.1:4436/logout",
                   #{<<"sessionTicket">> => BobSessionTicket}),
-
+    
     %%
     io:format("**** Login as Alice\n"),
-
-
-
     {ok, AliceSessionTicket} =
         case LoginMode of
             password ->
@@ -104,7 +109,7 @@ start(LoginMode) ->
             bank_id ->
                 bank_id_login(EncodedAliceFingerprint)
         end,
-
+    
     %%
     io:format("**** Create Alice'a key with Bob's stale session ticket\n"),
     {ok, 403, #{<<"errorMessage">> := <<"No active session">>}} =
@@ -118,14 +123,14 @@ start(LoginMode) ->
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => AliceSessionTicket,
                     <<"key">> => AliceKey}),
-
+    
     %%
     io:format("**** Create Alice's key again (should fail)\n"),
     {ok, 303, #{<<"errorMessage">> := <<"Key already exists">>}} =
         json_post("https://127.0.0.1:4436/create",
                   #{<<"sessionTicket">> => AliceSessionTicket,
                     <<"key">> => AliceKey}),
-
+    
     %%
     io:format("**** Read Alice's key\n"),
     {ok, 200, AliceKey} =
@@ -143,15 +148,15 @@ start(LoginMode) ->
           #{<<"userId">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedAliceFingerprint,
-               <<"keyId">> := EncodedAliceKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>],
-               <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedChuckFingerprint,
+            [#{<<"fingerprint">> := EncodedChuckFingerprint,
                <<"keyId">> := EncodedChuckKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>,<<"bob">>],
+               <<"verified">> := false},
+             #{<<"fingerprint">> := EncodedAliceFingerprint,
+               <<"keyId">> := EncodedAliceKeyId,
+               <<"nym">> := <<"alice">>,
+               <<"userIds">> := [<<"alice">>],
                <<"verified">> := false}] =
                 lists:sort(MatchingUserIdAliceKeys);
         bank_id ->
@@ -168,7 +173,7 @@ start(LoginMode) ->
                <<"verified">> := true}] =
                 lists:sort(MatchingUserIdAliceKeys)
     end,
-
+    
     %%
     io:format("**** Read Alice's key with the help of Alice's User ID *and* "
               "fingerprint\n"),
@@ -187,15 +192,15 @@ start(LoginMode) ->
           #{<<"nym">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedAliceFingerprint,
-               <<"keyId">> := EncodedAliceKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>],
-               <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedChuckFingerprint,
+            [#{<<"fingerprint">> := EncodedChuckFingerprint,
                <<"keyId">> := EncodedChuckKeyId,
                <<"nym">> := <<"alice">>,
                <<"userIds">> := [<<"alice">>,<<"bob">>],
+               <<"verified">> := false},
+             #{<<"fingerprint">> := EncodedAliceFingerprint,
+               <<"keyId">> := EncodedAliceKeyId,
+               <<"nym">> := <<"alice">>,
+               <<"userIds">> := [<<"alice">>],
                <<"verified">> := false}] =
                 lists:sort(MatchingNymAliceKeys);
         bank_id ->
@@ -212,31 +217,45 @@ start(LoginMode) ->
                <<"verified">> := true}] =
                 lists:sort(MatchingNymAliceKeys)
     end,
-
+    
     %%
-    io:format("**** Read a non-exsting key using HKP lookup (should fail)\n"),
-    {ok, 404, #{<<"errorMessage">> := <<"No such key">>}} =
-        http_get("https://127.0.0.1:4436/pks/lookup?op=get&search=0xfeedbabeff"),
-
-    io:format("**** Read Alice's key using HKP\n"),
+    io:format("**** Read a non-exsting key using manual HKP lookup/get (should fail)\n"),
+    {ok, 404} =
+        http_get(
+          "https://127.0.0.1:4436/pks/lookup?op=get&search=0xfeedbabeff"),
+    
+    %%
+    io:format("**** Read Alice's key using manual HKP lookup/get\n"),
     {ok, 200, AliceKey} =
         http_get("https://127.0.0.1:4436/pks/lookup?op=get&search=0x" ++
-                     ?b2l(keydir_service:bin_to_hexstr(AliceKeyId))),
-                 
+                     ?b2l(EncodedAliceKeyId)),
+    
     %%
-    io:format("**** Create Fred's key using HKP\n"),
+    io:format("**** Search Alice's key using manual HKP lookup/index\n"),
+    {ok, 200, #{<<"keys">> :=
+                    [#{<<"fingerprint">> := EncodedAliceFingerprint,
+                       <<"keyId">> := EncodedAliceKeyId,
+                       <<"nym">> := <<"alice">>,
+                       <<"userIds">> := [<<"alice">>],
+                       <<"verified">> := false}]}} =
+        http_get("https://127.0.0.1:4436/pks/lookup?op=index&search=0x" ++
+                     ?b2l(EncodedAliceKeyId)),
+    
+    %%
+    io:format("**** Create Fred's key using manual HKP\n"),
     {ok, 200} = http_post("https://127.0.0.1:4436/pks/add", FredKey),
-
+    
     %%
     io:format("**** Create Fred's key again with HKP (should fail)\n"),
     {ok, 303, #{<<"errorMessage">> := <<"Key already exists">>}} =
         http_post("https://127.0.0.1:4436/pks/add", FredKey),
     
     %%
-    io:format("**** Delete Alice's key using Chuck's session ticket (should fail)\n"),
+    io:format("**** Delete Alice's key using Chuck's session ticket "
+              "(should fail)\n"),
     {ok, 403, #{<<"errorMessage">> := <<"Session mismatch">>}} =
         json_post(
-          "https://127.0.0.1:4436/delete",
+           "https://127.0.0.1:4436/delete",
           #{<<"sessionTicket">> => ChuckSessionTicket,
             <<"fingerprint">> => EncodedAliceFingerprint}),
     
@@ -244,8 +263,15 @@ start(LoginMode) ->
     io:format("**** Logout Chuck\n"),
     {ok, 200} =
         json_post("https://127.0.0.1:4436/logout",
-                  #{<<"sessionTicket">> => ChuckSessionTicket}).
-
+                  #{<<"sessionTicket">> => ChuckSessionTicket}),
+    
+    %%
+    io:format("**** Read Alice's key using gpg command tool\n"),
+    Command = "gpg --dry-run --keyserver hkp://localhost:4436 --recv-keys " ++
+        ?b2l(EncodedAliceKeyId) ++ " 2>&1",
+    io:format("COMMAND: ~p\n", [Command]),
+    ok = os:cmd(Command).
+    
 password_login(EncodedFingerprint) ->
     {ok, 200, #{<<"sessionTicket">> := SessionTicket}} =
         json_post("https://127.0.0.1:4436/passwordLogin",
@@ -293,6 +319,7 @@ json_post(Url, JsonValue) ->
                       {space, 1},
                       native_forward_slash]),
     io:format("URL: ~s\n", [Url]),
+    io:format("BODY: ~s\n", [RequestBody]),
     case httpc:request(
            post,
            {Url, [], "application/json", RequestBody},
@@ -350,9 +377,10 @@ http_post(Url, Body) ->
 
 key_extract(ArmoredKey) ->
     {ok, #keydir_key{fingerprint = Fingerprint,
+                     key_id = KeyId,
                      nym = Nym}} = keydir_pgp:decode_key(ArmoredKey),
-    KeyId = pgp_parse:key_id(Fingerprint),
-    {Fingerprint, keydir_service:bin_to_hexstr(Fingerprint),
-     KeyId, base64:encode(KeyId),
+    {Fingerprint,
+     keydir_service:bin_to_hexstr(Fingerprint),
+     KeyId,
+     keydir_service:bin_to_hexstr(KeyId),
      Nym}.
-

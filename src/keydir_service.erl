@@ -12,8 +12,8 @@
 -define(VALID_UNTIL_TIME, (60 * 5)). % 5 minutes
 -define(SESSION_PURGE_TIME, 15000). % 15 seconds
 
--type key_id() :: binary(). %% 8 octets
--type fingerprint() :: binary(). %% 20 or 32 octets
+-type key_id() :: binary().
+-type fingerprint() :: binary().
 -type user_id() :: binary().
 -type nym() :: binary().
 -type password() :: binary().
@@ -63,6 +63,8 @@ bin_to_hexstr(Bin) ->
 %% Exported: hexstr_to_bin
 %%
 
+hexstr_to_bin(undefined) ->
+    undefined;
 hexstr_to_bin(Bin) ->
     hexstr_to_bin(?b2l(Bin), []).
 
@@ -120,14 +122,14 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                 [DataDir, _SessionDb, KeydirDb]) ->
     case string:tokens(Url#url.path, "/") of
         %% The OpenPGP HTTP Keyserver Protocol (HKP)
-        %% draft-shaw-openpgp-hkp-00.txt
+        %% draft-shaw-openpgp-hkp-00.txt and https://keys.openpgp.org/about/api
         ["pks", "lookup"] ->
             ParsedQueryString = uri_string:dissect_query(Url#url.querypart),
             case lists:keysearch("op", 1, ParsedQueryString) of
                 {value, {_, "get"}} ->
                     case lists:keysearch("search", 1, ParsedQueryString) of
-                        {value, {_, "0x" ++ KeyIdHexString}} ->
-                            KeyId = hexstr_to_bin(?l2b(KeyIdHexString)),
+                        {value, {_, "0x" ++ EncodedKeyId}} ->
+                            KeyId = hexstr_to_bin(?l2b(EncodedKeyId)),
                             case keydir_read(KeydirDb, #{key_id => KeyId}) of
                                 [#keydir_key{fingerprint = Fingerprint}] ->
                                     EncodedFingerprint =
@@ -136,16 +138,11 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                                         filename:join(
                                           [DataDir, EncodedFingerprint]),
                                     {200, {file, KeyFilename},
-                                     [{content_type,
-                                       "application/octet-stream"}]};
+                                     [{content_type, "text/plain"}]};
                                 [] ->
-                                    {json, 404,
-                                     #{<<"errorMessage">> =>
-                                           <<"No such key">>}};
+                                    404;
                                 MultipleKeys when is_list(MultipleKeys) ->
-                                    {json, 300,
-                                     #{<<"errorMessage">> =>
-                                           <<"Key ID matches multiple keys">>}}
+                                    501
                             end;
                         {value, _} ->
                             501;
@@ -154,8 +151,8 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                     end;
                 {value, {_, Op}} when Op == "index" orelse Op == "vindex" ->
                     case lists:keysearch("search", 1, ParsedQueryString) of
-                        {value, {_, "0x" ++ KeyIdHexString}} ->
-                            KeyId = hexstr_to_bin(?l2b(KeyIdHexString)),
+                        {value, {_, "0x" ++ EncodedKeyId}} ->
+                            KeyId = hexstr_to_bin(?l2b(EncodedKeyId)),
                             Keys = keydir_read(KeydirDb, #{key_id => KeyId}),
                             {json, 200, #{<<"keys">> => matching_keys(Keys)}};
                         {value, {_, Text}} ->
@@ -393,40 +390,27 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
         ["read"] ->
             try
                 JsonValue = parse_json_body(Request, Body),
-                [EncodedKeyId, EncodedFingerprint, UserId, Nym, GivenName,
+                [EncodedFingerprint, EncodedKeyId, UserId, Nym, GivenName,
                  PersonalNumber, Verified] =
                     rest_util:parse_json_params(
                       JsonValue,
-                      [{<<"keyId">>, fun erlang:is_binary/1, undefined},
-                       {<<"fingerprint">>, fun erlang:is_binary/1, undefined},
+                      [{<<"fingerprint">>, fun erlang:is_binary/1, undefined},
+                       {<<"keyId">>, fun erlang:is_binary/1, undefined},
                        {<<"userId">>, fun erlang:is_binary/1, undefined},
                        {<<"nym">>, fun erlang:is_binary/1, undefined},
                        {<<"givenName">>, fun erlang:is_binary/1, undefined},
                        {<<"personalNumber">>, fun erlang:is_binary/1,
                         undefined},
                        {<<"verified">>, fun erlang:is_boolean/1, undefined}]),
-                KeyId =
-                    case EncodedKeyId of
-                        undefined ->
-                            undefined;
-                        _ ->
-                            base64:decode(EncodedKeyId)
-                    end,
-                Fingerprint =
-                    case EncodedFingerprint of
-                        undefined ->
-                            undefined;
-                        _ ->
-                            hexstr_to_bin(EncodedFingerprint)
-                    end,
-                case keydir_read(KeydirDb,
-                                 #{key_id => KeyId,
-                                   fingerprint => Fingerprint,
-                                   user_id => UserId,
-                                   nym => Nym,
-                                   given_name => GivenName,
-                                   personal_number => PersonalNumber,
-                                   verified => Verified}) of
+                case keydir_read(
+                       KeydirDb,
+                       #{fingerprint => hexstr_to_bin(EncodedFingerprint),
+                         key_id => hexstr_to_bin(EncodedKeyId),
+                         user_id => UserId,
+                         nym => Nym,
+                         given_name => GivenName,
+                         personal_number => PersonalNumber,
+                         verified => Verified}) of
                     [] ->
                         {json, 404, #{<<"errorMessage">> => <<"No such key">>}};
                     [#keydir_key{fingerprint = Fingerprint}] ->
@@ -509,7 +493,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                     Response
             end;
         %% The OpenPGP HTTP Keyserver Protocol (HKP)
-        %% draft-shaw-openpgp-hkp-00.txt
+        %% draft-shaw-openpgp-hkp-00.txt and https://keys.openpgp.org/about/api
         ["pks", "add"] ->
             create_hkp_key(DataDir, KeydirDb, Body);
         _Tokens ->
@@ -586,17 +570,15 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
                         _ ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   <<"MIXMESH-GIVEN-NAME and "
-                                     "MIXMESH-PERSONAL-NUMBER User IDs must "
-                                     "*not* be specified">>}}
+                                   <<"MM-GN and MM-PNO User IDs must *not* be "
+                                     "specified">>}}
                     end;
                 {bank_id, {complete, BankIdGivenName, BankIdPersonalNumber}} ->
                     case {GivenName, PersonalNumber} of
                         {_, undefined} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   <<"A MIXMESH-PERSONAL-NUMBER User ID *must* "
-                                     "be specified">>}};
+                                   <<"A MM-PNO User ID *must* be specified">>}};
                         {undefined, BankIdPersonalNumber} ->
                             FinalKey = Key#keydir_key{verified = true},
                             store_key(
@@ -610,13 +592,13 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
                         {BankIdGivenName, _} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   <<"The MIXMESH-PERSONAL-NUMBER User ID does "
-                                     "*not* match the login credentials">>}};
+                                   <<"The MM-PNO User ID does *not* match the "
+                                     "login credentials">>}};
                         {_, BankIdPersonalNumber} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
-                                   <<"The MIXMESH-GIVEN-NAME User ID does "
-                                     "*not* match the login credentials">>}}
+                                   <<"The MM-GN User ID does *not* match the "
+                                     "login credentials">>}}
                     end
             end;
         {error, Reason} ->
@@ -669,9 +651,8 @@ matching_keys([]) ->
     [];
 matching_keys([Key|Rest]) ->
     [set_if_defined(
-       #{<<"keyId">> => base64:encode(
-                          pgp_parse:key_id(Key#keydir_key.fingerprint)),
-         <<"fingerprint">> => bin_to_hexstr(Key#keydir_key.fingerprint),
+       #{<<"fingerprint">> => bin_to_hexstr(Key#keydir_key.fingerprint),
+         <<"keyId">> => bin_to_hexstr(Key#keydir_key.key_id),
          <<"userIds">> => Key#keydir_key.user_ids,
          <<"nym">> => Key#keydir_key.nym,
          <<"verified">> => Key#keydir_key.verified},
@@ -693,7 +674,6 @@ set_if_defined(Map, [{KeyName, Value}|Rest]) ->
 update_key(DataDir, SessionDb, KeydirDb, EncodedKey, Session) ->
     insert_key(DataDir, SessionDb, KeydirDb, EncodedKey, Session, update).
 
-
 %%
 %% Request: /add
 %%
@@ -707,8 +687,7 @@ create_hkp_key(DataDir, KeydirDb, EncodedKey) ->
         {ok, _} ->
             {json, 400,
              #{<<"errorMessage">> =>
-                   <<"MIXMESH-GIVEN-NAME and MIXMESH-PERSONAL-NUMBER User IDs "
-                     "must *not* be specified">>}};
+                   <<"MM-GN and MM-PNO User IDs must *not* be specified">>}};
         {error, Reason} ->
 	    ?error_log({invalid_key, EncodedKey, Reason}),
             {json, 400, #{<<"errorMessage">> => <<"Invalid key">>}}
@@ -741,6 +720,7 @@ new_keydir_db(KeydirDir) ->
           ?MODULE, [{file, ?b2l(File)}, {keypos, #keydir_key.fingerprint}]),
     Db = ets:new(?MODULE, [public, {keypos, #keydir_key.fingerprint}]),
     Db = dets:to_ets(FileDb, Db),
+    ?dbg_log({initial_keydir_db, ets:tab2list(Db)}),
     {Db, FileDb}.
 
 keydir_create({Db, FileDb}, Key) ->
@@ -751,15 +731,16 @@ keydir_create({Db, FileDb}, Key) ->
             {error, already_exists}
     end.
 
-keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
-                             fingerprint := FingerprintFilter,
+keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter,
+                             key_id := KeyIdFilter,
                              user_id := UserIdFilter,
                              nym := NymFilter,
                              given_name := GivenNameFilter,
                              personal_number := PersonalNumberFilter,
-                             verified := VerifiedFilter}) ->
+                             verified := VerifiedFilter} = AAA) ->
     ets:foldl(fun(#keydir_key{
                      fingerprint = Fingerprint,
+                     key_id = KeyId,
                      user_ids = UserIds,
                      nym = Nym,
                      given_name = GivenName,
@@ -767,6 +748,8 @@ keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
                      verified = Verified} = Key, Acc)
                     when (FingerprintFilter == undefined orelse
                           FingerprintFilter == Fingerprint) andalso
+                         (KeyIdFilter == undefined orelse
+                          KeyIdFilter == KeyId) andalso
                          (NymFilter == undefined orelse
                           NymFilter == Nym) andalso
                          (GivenNameFilter == undefined orelse
@@ -775,27 +758,16 @@ keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
                           PersonalNumberFilter == PersonalNumber) andalso
                          (VerifiedFilter == undefined orelse
                           VerifiedFilter == Verified) ->
-                      MatchingKeyIdFilter =
-                          case KeyIdFilter of
-                              undefined ->
-                                  true;
-                              _ ->
-                                  pgp_parse:key_id(Fingerprint) ==
-                                      KeyIdFilter
-                          end,
                       if
-                          MatchingKeyIdFilter andalso
                           UserIdFilter == undefined ->
                               [Key|Acc];
-                          MatchingKeyIdFilter ->
+                          true ->
                               case lists:member(UserIdFilter, UserIds) of
                                   true ->
                                       [Key|Acc];
                                   false ->
                                       Acc
-                              end;
-                          true ->
-                              Acc
+                              end
                       end;
                  (_Key, Acc) ->
                       Acc
@@ -803,13 +775,11 @@ keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter,
 keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter}) ->
     ets:lookup(Db, FingerprintFilter);
 keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter}) ->
-    ets:foldl(fun(#keydir_key{fingerprint = Fingerprint} = Key, Acc) ->
-                      case pgp_parse:key_id(Fingerprint) of
-                          KeyIdFilter ->
-                              [Key|Acc];
-                          _ ->
-                              Acc
-                      end
+    ets:foldl(fun(#keydir_key{key_id = KeyId} = Key, Acc)
+                    when KeyIdFilter == KeyId ->
+                      [Key|Acc];
+                 (_, Acc) ->
+                      Acc
               end, [], Db);
 keydir_read({Db, _FileDb}, #{nym := NymFilter}) ->
     ets:foldl(fun(#keydir_key{nym = Nym} = Key, Acc)
@@ -821,7 +791,8 @@ keydir_read({Db, _FileDb}, #{nym := NymFilter}) ->
 
 keydir_update({Db, FileDb}, Key) ->
     true = ets:insert(Db, Key),
-    dets:insert(FileDb, Key).
+    dets:insert(FileDb, Key),
+    dets:sync(FileDb). %% FIXME: Remove!
 
 keydir_delete({Db, FileDb}, Fingerprint) ->
     true = ets:delete(Db, Fingerprint),
