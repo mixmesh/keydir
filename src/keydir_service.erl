@@ -9,7 +9,7 @@
 -include("../include/keydir_service.hrl").
 
 -define(SESSION_TICKET_SIZE, 32).
--define(VALID_UNTIL_TIME, (60 * 5)). % 5 minutes
+-define(VALID_UNTIL_TIME, (60 * 500)). % 500 minutes
 -define(SESSION_PURGE_TIME, 15000). % 15 seconds
 
 -type key_id() :: binary().
@@ -234,7 +234,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                     rest_util:parse_json_params(
                       JsonValue,
                       [{<<"sessionTicket">>, fun erlang:is_binary/1}]),
-                SessionTicket = base64:decode(EncodedSessionTicket),
+                SessionTicket = try_base64_decode(EncodedSessionTicket),
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{
                         type = {bank_id, {pending, OrderRef, _HintCode}}} =
@@ -300,7 +300,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                     rest_util:parse_json_params(
                       JsonValue,
                       [{<<"sessionTicket">>, fun erlang:is_binary/1}]),
-                SessionTicket = base64:decode(EncodedSessionTicket),
+                SessionTicket = try_base64_decode(EncodedSessionTicket),
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{type = {bank_id,
                                       {pending, OrderRef, _HintCode}}}] ->
@@ -337,7 +337,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                     rest_util:parse_json_params(
                       JsonValue,
                       [{<<"sessionTicket">>, fun erlang:is_binary/1}]),
-                SessionTicket = base64:decode(EncodedSessionTicket),
+                SessionTicket = try_base64_decode(EncodedSessionTicket),
                 case session_lookup(SessionDb, SessionTicket) of
                     [_] ->
                         true = session_delete(SessionDb, SessionTicket),
@@ -361,7 +361,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                       JsonValue,
                       [{<<"sessionTicket">>, fun erlang:is_binary/1},
                        {<<"key">>,  fun erlang:is_binary/1}]),
-                SessionTicket = base64:decode(EncodedSessionTicket),
+                SessionTicket = try_base64_decode(EncodedSessionTicket),
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{type = {password, _Password}} = Session] ->
                         create_key(DataDir, SessionDb, KeydirDb, EncodedKey,
@@ -468,7 +468,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                       JsonValue,
                       [{<<"sessionTicket">>, fun erlang:is_binary/1},
                        {<<"fingerprint">>,  fun erlang:is_binary/1}]),
-                SessionTicket = base64:decode(EncodedSessionTicket),
+                SessionTicket = try_base64_decode(EncodedSessionTicket),
                 Fingerprint = hexstr_to_bin(EncodedFingerprint),
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{fingerprint = Fingerprint}] ->
@@ -505,7 +505,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
 %%
 
 start_password_session(SessionDb, Fingerprint, Password) ->
-    SessionTicket = enacl:randombytes(?SESSION_TICKET_SIZE),
+    SessionTicket = <<"foobar">>, % enacl:randombytes(?SESSION_TICKET_SIZE),
     Now = erlang:system_time(seconds),
     Session =
         #session{
@@ -907,3 +907,12 @@ default_phrase(502) -> "Bad Gateway";
 default_phrase(503) -> "Service Unavailable";
 default_phrase(504) -> "Gateway Time-out";
 default_phrase(505) -> "HTTP Version not supported".
+
+try_base64_decode(Bin) ->
+    try
+        base64:decode(Bin)
+    catch
+        error:badarg ->
+            throw(
+              {error, ?l2b(io_lib:format("~s is not base64 encoded", [Bin]))})
+    end.

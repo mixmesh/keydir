@@ -9,7 +9,7 @@
 -define(PERSONAL_NUMBER, <<"201701012393">>).
 
 start() ->
-    start(bank_id).
+    start(password).
 
 start(LoginMode) ->
     IsBankId = LoginMode == bank_id,
