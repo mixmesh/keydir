@@ -15,7 +15,7 @@ alice.key:
 	./mkkey alice.key alice
 
 alice-bank-id.key:
-	./mkkey alice-bank-id.key alice "MM-PNO:20170101239"3
+	./mkkey alice-bank-id.key alice "MM-PNO:20170101239"
 
 bob.key:
 	./mkkey bob.key "MM-NYM:bob"

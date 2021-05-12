@@ -807,7 +807,7 @@ parse_json_body(Request, Body) ->
            Request, Body,
            [{jsone_options, [{object_format, proplist}]}]) of
         {error, _Reason} ->
-            throw({error, "Invalid JSON format"});
+            throw({error, <<"Invalid JSON format">>});
         JsonValue ->
             JsonValue
     end.
