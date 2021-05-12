@@ -9,9 +9,11 @@
 -define(PERSONAL_NUMBER, <<"201701012393">>).
 
 start() ->
-    start(password).
+    start(bank_id).
 
 start(LoginMode) ->
+    IsBankId = LoginMode == bank_id,
+
     AliceKeyFilename =
         case LoginMode of
             password ->
@@ -137,7 +139,7 @@ start(LoginMode) ->
         json_post(
           "https://127.0.0.1:4436/read",
           #{<<"fingerprint">> => EncodedAliceFingerprint,
-            <<"verified">> => (LoginMode == bank_id)}),
+            <<"verified">> => IsBankId}),
     
     %%
     io:format("**** Read Alice's key with the help of Alice's User ID "
@@ -148,30 +150,32 @@ start(LoginMode) ->
           #{<<"userId">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedChuckFingerprint,
-               <<"keyId">> := EncodedChuckKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>,<<"bob">>],
-               <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedAliceFingerprint,
-               <<"keyId">> := EncodedAliceKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>],
-               <<"verified">> := false}] =
-                lists:sort(MatchingUserIdAliceKeys);
+            lists_must_match(
+              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+                 <<"keyId">> => EncodedAliceKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"alice">>],
+                 <<"verified">> => false},
+               #{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
+                 <<"verified">> => false}],
+              MatchingUserIdAliceKeys);
         bank_id ->
-            [#{<<"keyId">> := EncodedChuckKeyId,
-               <<"fingerprint">> := EncodedChuckFingerprint,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>,<<"bob">>],
-               <<"verified">> := false},
-             #{<<"keyId">> := EncodedAliceKeyId,
-               <<"fingerprint">> := EncodedAliceFingerprint,
-               <<"nym">> := <<"alice">>,
-               <<"personalNumber">> := <<"201701012393">>,
-               <<"userIds">> := [<<"alice">>],
-               <<"verified">> := true}] =
-                lists:sort(MatchingUserIdAliceKeys)
+            lists_must_match(
+              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+                 <<"keyId">> => EncodedAliceKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"personalNumber">> => <<"201701012393">>,
+                 <<"userIds">> => [<<"alice">>],
+                 <<"verified">> => true},
+               #{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
+                 <<"verified">> => false}],
+              MatchingUserIdAliceKeys)
     end,
     
     %%
@@ -192,34 +196,37 @@ start(LoginMode) ->
           #{<<"nym">> => <<"alice">>}),
     case LoginMode of
         password ->
-            [#{<<"fingerprint">> := EncodedChuckFingerprint,
-               <<"keyId">> := EncodedChuckKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>,<<"bob">>],
-               <<"verified">> := false},
-             #{<<"fingerprint">> := EncodedAliceFingerprint,
-               <<"keyId">> := EncodedAliceKeyId,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>],
-               <<"verified">> := false}] =
-                lists:sort(MatchingNymAliceKeys);
+            lists_must_match(
+              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+                 <<"keyId">> => EncodedAliceKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"alice">>],
+                 <<"verified">> => false},
+               #{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
+                 <<"verified">> => false}],
+              MatchingNymAliceKeys);
         bank_id ->
-            [#{<<"keyId">> := EncodedChuckKeyId,
-               <<"fingerprint">> := EncodedChuckFingerprint,
-               <<"nym">> := <<"alice">>,
-               <<"userIds">> := [<<"alice">>,<<"bob">>],
-               <<"verified">> := false},
-             #{<<"keyId">> := EncodedAliceKeyId,
-               <<"fingerprint">> := EncodedAliceFingerprint,
-               <<"nym">> := <<"alice">>,
-               <<"personalNumber">> := <<"201701012393">>,
-               <<"userIds">> := [<<"alice">>],
-               <<"verified">> := true}] =
-                lists:sort(MatchingNymAliceKeys)
+            lists_must_match(
+              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+                 <<"keyId">> => EncodedAliceKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"personalNumber">> => <<"201701012393">>,
+                 <<"userIds">> => [<<"alice">>],
+                 <<"verified">> => true},
+               #{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
+                 <<"verified">> => false}],
+              MatchingNymAliceKeys)
     end,
     
     %%
-    io:format("**** Read a non-exsting key using manual HKP lookup/get (should fail)\n"),
+    io:format("**** Read a non-existing key using manual HKP lookup/get "
+              "(should fail)\n"),
     {ok, 404} =
         http_get(
           "https://127.0.0.1:4436/pks/lookup?op=get&search=0xfeedbabeff"),
@@ -237,7 +244,7 @@ start(LoginMode) ->
                        <<"keyId">> := EncodedAliceKeyId,
                        <<"nym">> := <<"alice">>,
                        <<"userIds">> := [<<"alice">>],
-                       <<"verified">> := false}]}} =
+                       <<"verified">> := IsBankId}]}} =
         http_get("https://127.0.0.1:4436/pks/lookup?op=index&search=0x" ++
                      ?b2l(EncodedAliceKeyId)),
     
@@ -384,3 +391,7 @@ key_extract(ArmoredKey) ->
      KeyId,
      keydir_service:bin_to_hexstr(KeyId),
      Nym}.
+
+lists_must_match(List1, List2) ->
+    SortedList1 = lists:sort(List1),
+    SortedList1 = lists:sort(List2).

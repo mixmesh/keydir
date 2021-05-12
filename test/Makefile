@@ -15,13 +15,13 @@ alice.key:
 	./mkkey alice.key alice
 
 alice-bank-id.key:
-	./mkkey alice-bank-id.key alice "MM-PNO:201701012393"
+	./mkkey alice-bank-id.key alice "MM-PNO:20170101239"3
 
 bob.key:
 	./mkkey bob.key "MM-NYM:bob"
 
 chuck.key:
-	./mkkey chuck.key alice bob "MM-NYM:alice"
+	./mkkey chuck.key chuck alice bob "MM-NYM:alice"
 
 fred.key:
 	./mkkey fred.key "MM-NYM:fred"

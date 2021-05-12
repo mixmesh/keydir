@@ -413,7 +413,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                          verified => Verified}) of
                     [] ->
                         {json, 404, #{<<"errorMessage">> => <<"No such key">>}};
-                    [#keydir_key{fingerprint = Fingerprint}] ->
+                    [_] ->
                         KeyFilename =
                             filename:join([DataDir, EncodedFingerprint]),
                         {200, {file, KeyFilename},
@@ -737,7 +737,7 @@ keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter,
                              nym := NymFilter,
                              given_name := GivenNameFilter,
                              personal_number := PersonalNumberFilter,
-                             verified := VerifiedFilter} = AAA) ->
+                             verified := VerifiedFilter}) ->
     ets:foldl(fun(#keydir_key{
                      fingerprint = Fingerprint,
                      key_id = KeyId,
