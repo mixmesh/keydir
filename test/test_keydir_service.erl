@@ -12,7 +12,7 @@ start() ->
     start(password).
 
 start(LoginMode) ->
-    IsBankId = LoginMode == bank_id,
+    IsBankId = (LoginMode == bank_id),
 
     AliceKeyFilename =
         case LoginMode of
@@ -151,30 +151,31 @@ start(LoginMode) ->
     case LoginMode of
         password ->
             lists_must_match(
-              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+              [#{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"verified">> => false},
+               #{<<"fingerprint">> => EncodedAliceFingerprint,
                  <<"keyId">> => EncodedAliceKeyId,
                  <<"nym">> => <<"alice">>,
                  <<"userIds">> => [<<"alice">>],
-                 <<"verified">> => false},
-               #{<<"fingerprint">> => EncodedChuckFingerprint,
-                 <<"keyId">> => EncodedChuckKeyId,
-                 <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
                  <<"verified">> => false}],
               MatchingUserIdAliceKeys);
         bank_id ->
             lists_must_match(
-              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+              [#{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"verified">> => false},
+               #{<<"fingerprint">> => EncodedAliceFingerprint,
+                 <<"givenName">> => <<"Joe">>,
                  <<"keyId">> => EncodedAliceKeyId,
                  <<"nym">> => <<"alice">>,
                  <<"personalNumber">> => <<"201701012393">>,
                  <<"userIds">> => [<<"alice">>],
-                 <<"verified">> => true},
-               #{<<"fingerprint">> => EncodedChuckFingerprint,
-                 <<"keyId">> => EncodedChuckKeyId,
-                 <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
-                 <<"verified">> => false}],
+                 <<"verified">> => true}],
               MatchingUserIdAliceKeys)
     end,
     
@@ -197,30 +198,31 @@ start(LoginMode) ->
     case LoginMode of
         password ->
             lists_must_match(
-              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+              [#{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"verified">> => false},
+               #{<<"fingerprint">> => EncodedAliceFingerprint,
                  <<"keyId">> => EncodedAliceKeyId,
                  <<"nym">> => <<"alice">>,
                  <<"userIds">> => [<<"alice">>],
-                 <<"verified">> => false},
-               #{<<"fingerprint">> => EncodedChuckFingerprint,
-                 <<"keyId">> => EncodedChuckKeyId,
-                 <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
                  <<"verified">> => false}],
               MatchingNymAliceKeys);
         bank_id ->
             lists_must_match(
-              [#{<<"fingerprint">> => EncodedAliceFingerprint,
+              [#{<<"fingerprint">> => EncodedChuckFingerprint,
+                 <<"keyId">> => EncodedChuckKeyId,
+                 <<"nym">> => <<"alice">>,
+                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"verified">> => false},
+               #{<<"fingerprint">> => EncodedAliceFingerprint,
+                 <<"givenName">> => <<"Joe">>,
                  <<"keyId">> => EncodedAliceKeyId,
                  <<"nym">> => <<"alice">>,
                  <<"personalNumber">> => <<"201701012393">>,
                  <<"userIds">> => [<<"alice">>],
-                 <<"verified">> => true},
-               #{<<"fingerprint">> => EncodedChuckFingerprint,
-                 <<"keyId">> => EncodedChuckKeyId,
-                 <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"chuck">>,<<"alice">>,<<"bob">>],
-                 <<"verified">> => false}],
+                 <<"verified">> => true}],
               MatchingNymAliceKeys)
     end,
     
