@@ -9,7 +9,7 @@
 -include("../include/keydir_service.hrl").
 
 -define(SESSION_TICKET_SIZE, 32).
--define(VALID_UNTIL_TIME, (60 * 500)). % 500 minutes
+-define(VALID_UNTIL_TIME, (60 * 60)). % 1 hour (a tad long)
 -define(SESSION_PURGE_TIME, 15000). % 15 seconds
 
 -type key_id() :: binary().
@@ -271,9 +271,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                                               PersonalNumber}}}),
                                 {json, 200, #{<<"status">> => <<"complete">>}};
                             {bad_response, Status, Phrase, ResponseJsonValue} ->
-                                ?error_log({bad_bank_id_response, Status,
-                                            Phrase, ResponseJsonValue}),
-                                500;
+                                {json, {Status, Phrase}, ResponseJsonValue};
                             {http_error, Reason} ->
                                 ?error_log({http_error, Reason}),
                                 500
@@ -308,9 +306,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                             ok ->
                                 200;
                             {bad_response, Status, Phrase, ResponseJsonValue} ->
-                                ?error_log({bad_response, Status, Phrase,
-                                            ResponseJsonValue}),
-                                500;
+                                {json, {Status, Phrase}, ResponseJsonValue};
                             {http_error, Reason} ->
                                 ?error_log({http_error, Reason}),
                                 500
@@ -413,9 +409,10 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                          verified => Verified}) of
                     [] ->
                         {json, 404, #{<<"errorMessage">> => <<"No such key">>}};
-                    [_] ->
+                    [#keydir_key{fingerprint = DecodedFingerprint}] ->
                         KeyFilename =
-                            filename:join([DataDir, EncodedFingerprint]),
+                            filename:join(
+                              [DataDir, bin_to_hexstr(DecodedFingerprint)]),
                         {200, {file, KeyFilename},
                          [{content_type, "application/octet-stream"}]};
                     Keys ->
@@ -472,11 +469,17 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                 Fingerprint = hexstr_to_bin(EncodedFingerprint),
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{fingerprint = Fingerprint}] ->
-                        ok = keydir_delete(KeydirDb, Fingerprint),
-                        KeyFilename =
-                            filename:join([DataDir, EncodedFingerprint]),
-                        ok = file:delete(KeyFilename),
-                        200;
+                        case keydir_delete(KeydirDb, Fingerprint) of
+                            true ->
+                                KeyFilename =
+                                    filename:join(
+                                      [DataDir, EncodedFingerprint]),
+                                ok = file:delete(KeyFilename),
+                                200;
+                            false ->
+                                {json, 404,
+                                 #{<<"errorMessage">> => <<"No such key">>}}
+                        end;
                     [] ->
                         ?dbg_log({missing_session_ticket, SessionTicket}),
                         {json, 403,
@@ -505,7 +508,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
 %%
 
 start_password_session(SessionDb, Fingerprint, Password) ->
-    SessionTicket = <<"foobar">>, % enacl:randombytes(?SESSION_TICKET_SIZE),
+    SessionTicket = enacl:randombytes(?SESSION_TICKET_SIZE),
     Now = erlang:system_time(seconds),
     Session =
         #session{
@@ -535,8 +538,7 @@ start_bank_id_session(Socket, SessionDb, Fingerprint, PersonalNumber) ->
             true = session_insert(SessionDb, Session),
             {json, 200, #{<<"sessionTicket">> => base64:encode(SessionTicket)}};
         {bad_response, Status, Phrase, ResponseJsonValue} ->
-            ?error_log({bad_response, Status, Phrase, ResponseJsonValue}),
-            500;
+            {json, {Status, Phrase}, ResponseJsonValue};
         {http_error, Reason} ->
             ?error_log({http_error, Reason}),
             500
@@ -580,21 +582,28 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
                              #{<<"errorMessage">> =>
                                    <<"A MM-PNO User ID *must* be specified">>}};
                         {undefined, BankIdPersonalNumber} ->
-                            FinalKey = Key#keydir_key{verified = true},
+                            FinalKey = Key#keydir_key{
+                                         given_name = BankIdGivenName,
+                                         verified = true},
                             store_key(
                               DataDir, SessionDb, KeydirDb, Session, Mode,
                               EncodedKey, FinalKey);
+                        {undefined, _AnotherBankIdPersonalNumber} ->
+                            {json, 400,
+                             #{<<"errorMessage">> =>
+                                   <<"The MM-PNO User ID does *not* match the "
+                                     "login credentials">>}};
                         {BankIdGivenName, BankIdPersonalNumber} ->
                             FinalKey = Key#keydir_key{verified = true},
                             store_key(
                               DataDir, SessionDb, KeydirDb, Session, Mode,
                               EncodedKey, FinalKey);
-                        {BankIdGivenName, _} ->
+                        {BankIdGivenName, _AnotherBankIdPersonalNumber} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
                                    <<"The MM-PNO User ID does *not* match the "
                                      "login credentials">>}};
-                        {_, BankIdPersonalNumber} ->
+                        {_AnotherBankIdGivenName, _} ->
                             {json, 400,
                              #{<<"errorMessage">> =>
                                    <<"The MM-GN User ID does *not* match the "
@@ -795,8 +804,13 @@ keydir_update({Db, FileDb}, Key) ->
     dets:sync(FileDb). %% FIXME: Remove!
 
 keydir_delete({Db, FileDb}, Fingerprint) ->
-    true = ets:delete(Db, Fingerprint),
-    dets:delete(FileDb, Fingerprint).
+    case ets:lookup(Db, Fingerprint) of
+        [] ->
+            false;
+        [_] ->
+            true = ets:delete(Db, Fingerprint),
+            dets:delete(FileDb, Fingerprint)
+    end.
 
 %%
 %% Network marshalling tools

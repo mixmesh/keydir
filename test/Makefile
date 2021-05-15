@@ -5,7 +5,7 @@ ERL_HEADERS=$(wildcard *.hrl) $(wildcard ../../*/include/*.hrl)
 ERL_SOURCES=$(wildcard *.erl)
 ERL_OBJECTS=$(ERL_SOURCES:%.erl=%.beam)
 ALL_OBJECTS=$(ERL_OBJECTS)
-GPG=gpg
+#@END-TEST-DEFAULT-RULES@
 
 all: $(ALL_OBJECTS) alice.key alice-bank-id.key bob.key chuck.key fred.key
 
@@ -15,13 +15,13 @@ alice.key:
 	./mkkey alice.key alice
 
 alice-bank-id.key:
-	./mkkey alice-bank-id.key alice "MM-PNO:20170101239"
+	./mkkey alice-bank-id.key alice "MM-PNO:201701012393"
 
 bob.key:
 	./mkkey bob.key "MM-NYM:bob"
 
 chuck.key:
-	./mkkey chuck.key chuck alice bob "MM-NYM:alice"
+	./mkkey chuck.key "MM-NYM:alice" bob alice
 
 fred.key:
 	./mkkey fred.key "MM-NYM:fred"
@@ -31,7 +31,8 @@ clean:
 
 %.beam: %.erl
 	env $(ERLC) $(ERLC_FLAGS) $<
-#@END-TEST-DEFAULT-RULES@
+
 
 runtest: all
 	rm -f /tmp/mixmesh/keydir-service/keydir_service; ../../mixmesh/bin/run_test --config ../../mixmesh/etc/mixmesh-keydir-only.conf .
+
