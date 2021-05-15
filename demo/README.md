@@ -691,7 +691,7 @@ screener". Can you see why this happens? I am stumped!!
 
 ## Perform a HKP pks/add operation
 
-Add chuck.key.key with a HKP add request:
+Add chuck.key with a HKP add request:
 
 ```
 $ curl -X POST -H "Content-Type: application/octet-stream" --data-binary @chuck.key http://127.0.0.1:4436/pks/add
