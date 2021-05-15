@@ -123,7 +123,8 @@ The keydir service REST API exports the following request URIs:
 * /pks/add - Perform a HKP add operation
 
 The HKP acronym refers to the "The OpenPGP HTTP Keyserver Protocol
-(HKP)" [1] and https://keys.openpgp.org/about/api.
+(HKP)" [1] and to information provided in
+https://keys.openpgp.org/about/api.
 
 [1] https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00 and
 
@@ -138,16 +139,15 @@ $ curl -K curlrc -d '{"fingerprint": "FEEDBABEFF"}' http://localhost:4436/read
 }
 ```
 
-Well, it didn't exist.
+Well, it did not exist.
 
 ## Login with the fingerprint associated with bob.key
 
-Login to the keydir server with the fingerprint associated with bob.key
+Login to the keydir service with the fingerprint associated with bob.key
 (see above) and a nice password. 
 
-**NOTE**: The alice-bank-id.key will be used further down to perform
-  Bank ID authentication. Do not be hasty and lets start with a
-  password login.
+**NOTE**: Do not be hasty. The alice-bank-id.key will be used in due
+  time to perform Bank ID authentication as well.
 
 ```
 $ BODY='{"fingerprint": "7B6F0127661B993D584F7875F3B5DF1462C00D87", "password": "mortuta42"}'
@@ -166,7 +166,7 @@ used later on:
 $ BOB_TICKET="zy2ZmY02KUaKeJp0fX8NJdPg1RwTanxrO9IqZRaDgFo="
 ```
 
-This in done all examples below as well.
+All examples below store session tickets in variables for future use.
 
 ## Try to create chuck.key with the bob.key session ticket
 
@@ -184,7 +184,9 @@ $ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
 
 That was indeed expected!
 
-# Create bob.key
+## Create bob.key
+
+Use the bob.key session ticket to create bob.key:
 
 ```
 $ KEY=`cat bob.key`
@@ -196,8 +198,8 @@ No news is good news!
 
 ## Login with the fingerprint associated with chuck.key
 
-Login to the keydir server with the fingerprint associated with chuck.key
-(see above) and a nice password. 
+Login to the keydir service with the fingerprint associated with
+chuck.key (see above) and a nice password. 
 
 ```
 $ BODY='{"fingerprint": "35E130DD43043ADC658273019F50A63B44B6A10C", "password": "mortuta42"}'
@@ -211,6 +213,8 @@ $ CHUCK_TICKET="WSCX3lYwESQ/wcWQLC8agP7m1MK571ba6ugcu/0ORHg="
 It worked!
 
 ## Create chuck.key
+
+Use the chuck.key session ticket to create chuck.key:
 
 ```
 $ KEY=`cat chuck.key`
@@ -229,9 +233,11 @@ $ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
 }
 ```
 
-Use http://localhost:4436/update to modify already existing keys.
+The "update" request URI must be used to modify already existing keys.
 
 ## Logout with the fingerprint associated with bob.key
+
+Use the bob.key session ticket logout from the kdeydir service:
 
 ```
 $ BODY="{\"sessionTicket\": \"${BOB_TICKET}\"}"
@@ -674,7 +680,7 @@ gpg: Total number processed: 1
 
 Life is good!
 
-TONY: Actually it isn't good because of the "rejected by import
+TONY: Actually it is not good because of the "rejected by import
 screener". Can you see why this happens?
 
 ## Perform a HKP pks/add operation
