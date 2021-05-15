@@ -1,14 +1,31 @@
-# Start the keydir server
+# The keydir service
 
-Lets try the keydir server with a number of curl examples. First
-start a Mixmesh instance with a keydir server running on port 4436:
+The keydir service is a persistent storage service which provides a
+REST API over HTTP/S that exports a CRUD API to manage PGP keys. This
+is indeed not a new thing and both "The OpenPGP HTTP Keyserver
+Protocol (HKP)"[1], https://keys.openpgp.org/about/api and
+https://hockeypuck.io/ comes to mind.
+
+The keydir service has Bank ID authentication support built in though
+and it is obviously a better solution than all the competition put
+together. :-)
+
+Follow the instructions below for a curl driven demo of its
+functionality.
+
+[1] https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00
+
+# Introduction to the demo
+
+Lets try the keydir service with a number of curl examples. First
+start a Mixmesh instance with a keydir service running on port 4436: 
 
 ```
 $ cd ~/src/mixmesh/mixmesh
 $ ./bin/mixmesh --config etc/mixmesh-keydir-only.conf
 ```
 
-# Go to the keydir demo directory
+# Go to the keydir service demo directory
 
 Start a new terminal shell and go to ~src/mixmesh/keydir/demo:
 
@@ -16,10 +33,7 @@ Start a new terminal shell and go to ~src/mixmesh/keydir/demo:
 $ cd ~/src/mixmesh/keydir/demo
 ```
 
-Inspect the pre-generated keys in this directory. They have been
-generated with the ~/src/mixmesh/keydir/test/mkkey script (FYI).
-
-Inspect the keys:
+Inspect the pre-generated demo keys:
 
 ```
 $ gpg --show-keys alice-bank-id.key 
@@ -45,37 +59,39 @@ sub   elg1024 2021-05-14 [E] [expires: 2022-05-14]
 ```
 
 **NOTE**: The gpg --show-keys option lists the User IDs in reverse
- order compared to the actual packet ordering. This means that the
- primary User ID for alice-bank-id.key is "alice" (nothing else). If
+ order compared to the actual pgp packet ordering. This means that the
+ primary User ID for alice-bank-id.key is "alice" (nothing else). If 
  in doubt check with gpg --list-packets.
 
 **TIP**: Note the key fingerprints and User IDs above. They will be
-  used in the forthcoming curl examples.
+  used in forthcoming curl examples.
 
 Understand the following:
 
 * alice-bank-id.key has two User IDs, i.e. "alice" is the unadorned
   primary User ID and "MM-PNO:20170101239" identifies the Mixmesh
   Personal Number. The personal number is mandatory for a key to be
-  created on the keydir server using Bank ID. The primary User ID also
-  functions as the Mixmesh Nym.
+  created on the keydir server using Bank ID authentication. The
+  primary User ID also functions as the Mixmesh Nym.
+
 * bob.key has two User IDs, i.e. "bob" is the unadorned primary User
-  ID and "MM-NYM:bob" identifies Mixmesh Nym (both are the same in
-  this case). 
+  ID and "MM-NYM:bob" identifies the Mixmesh Nym (both are the same
+  for this key).
+
 * chuck.key is a tricky bastard and has three ambiguous User
   IDs. "alice" is the unadorned primary User ID and "bob" is an extra
   User ID. "MM-PNO:bob" identifies the Mixmesh Nym. This is all very
   confusing and done out of spite. It is perfectly OK for Chuck to be
   this devious.
 
-There is actually one more adorned Mixmesh User ID not used in the
-keys above and it is "MM-GN: *" (Given Name), and it works in concert
+There is actually one more adorned Mixmesh User ID tah is not used in
+the keys above and it is "MM-GN: *" (Given Name). It works in concert
 with "MM-PNO: *" to aid the Bank ID authentication. To be more
 precise: A "MM-PNO: *" User ID **must** exist and **must** exactly
 match the user's Personal Number negotiated during Bank ID
 authentication. A "MM-GN: *" User ID **may** exist and if it does it
 **must** exactly match the Given Name negotiated during the Bank ID
-authentication. 
+authentication.
 
 **NOTE**: Chuck's confusing list of User IDs are introduced to show
 that the only User ID that ever can be considered unique is "MM-PNO:
