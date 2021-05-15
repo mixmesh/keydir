@@ -3,8 +3,8 @@
 The keydir service is a persistent storage service which provides a
 REST API over HTTP/S and exports a CRUD API to manage PGP keys. This
 is indeed not a new thing and both "The OpenPGP HTTP Keyserver
-Protocol (HKP)" [1], https://keys.openpgp.org/about/api and
-https://hockeypuck.io/ comes to mind.
+Protocol (HKP)" [1], https://keys.openpgp.org and
+https://hockeypuck.io comes to mind.
 
 The keydir service has Bank ID authentication support built in though
 and it is obviously a better solution than all the competition put
@@ -85,7 +85,7 @@ Understand the following:
   confusing and done out of spite. It is perfectly OK for Chuck to be
   this devious.
 
-There is actually one more adorned Mixmesh User ID tah is not used in
+There is actually one more adorned Mixmesh User ID that is not used in
 the keys above and it is "MM-GN: *" (Given Name). It works in concert
 with "MM-PNO: *" to aid the Bank ID authentication. To be more
 precise: A "MM-PNO: *" User ID **must** exist and **must** exactly
@@ -109,24 +109,23 @@ $ cat curlrc
 -X POST
 ```
 
-The keydir server has a REST API and it exports the following request
-URIs:
+The keydir service REST API exports the following request URIs:
 
-* /passwordLogin - Login using a password
+* /passwordLogin - Login using password authetication
 * /bankIdAuth - Initialize a Bank ID authentication
-* /bankIdCollect - Wait for an end-user Bank ID app to perform a Bank ID authentication
-* /logout
-* /create - Create a new key (must not exist)
+* /bankIdCollect - Wait for a Bank ID app to authenticate a key to be managed
+* /logout - Logout from a password login or a Bank ID authentication
+* /create - Create a new key (must **not** exist)
 * /read - Read a key using various criteria
-* /update - Update (an existing) key (or create a new key)
+* /update - Update an existing key or create a new key
 * /delete - Delete a key
 * /pks/lookup - Perform a HKP lookup operation
 * /pks/add - Perform a HKP add operation
 
 The HKP acronym refers to the "The OpenPGP HTTP Keyserver Protocol
-(HKP)" as described in
-https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00 and
-https://keys.openpgp.org/about/api.
+(HKP)" [1] and https://keys.openpgp.org/about/api.
+
+[1] https://datatracker.ietf.org/doc/html/draft-shaw-openpgp-hkp-00 and
 
 ## Try to read a non-existing key
 
