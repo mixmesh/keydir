@@ -1,9 +1,9 @@
 # The keydir service
 
 The keydir service is a persistent storage service which provides a
-REST API over HTTP/S that exports a CRUD API to manage PGP keys. This
+REST API over HTTP/S and exports a CRUD API to manage PGP keys. This
 is indeed not a new thing and both "The OpenPGP HTTP Keyserver
-Protocol (HKP)"[1], https://keys.openpgp.org/about/api and
+Protocol (HKP)" [1], https://keys.openpgp.org/about/api and
 https://hockeypuck.io/ comes to mind.
 
 The keydir service has Bank ID authentication support built in though
@@ -70,9 +70,10 @@ Understand the following:
 
 * alice-bank-id.key has two User IDs, i.e. "alice" is the unadorned
   primary User ID and "MM-PNO:20170101239" identifies the Mixmesh
-  Personal Number. The personal number is mandatory for a key to be
-  created on the keydir server using Bank ID authentication. The
-  primary User ID also functions as the Mixmesh Nym.
+  Personal Number. The personal number is mandatory for a key which is
+  to be created on the keydir service using Bank ID
+  authentication. The primary User ID also functions as the Mixmesh
+  Nym.
 
 * bob.key has two User IDs, i.e. "bob" is the unadorned primary User
   ID and "MM-NYM:bob" identifies the Mixmesh Nym (both are the same
