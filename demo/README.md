@@ -98,6 +98,7 @@ URIs:
 * /passwordLogin - Login using a password
 * /bankIdAuth - Initialize a Bank ID authentication
 * /bankIdCollect - Wait for an end-user Bank ID app to perform a Bank ID authentication
+* /logout
 * /create - Create a new key (must not exist)
 * /read - Read a key using various criteria
 * /update - Update (an existing) key (or create a new key)
