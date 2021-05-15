@@ -22,6 +22,8 @@ start a Mixmesh instance with a keydir service running on port 4436:
 
 ```
 $ cd ~/src/mixmesh/mixmesh
+$ ./bin/mixmesh --self-signed-ssl-cert > cert.pem
+$ ./bin/mkconfig /tmp/mixmesh cert.pem alice
 $ ./bin/mixmesh --config etc/mixmesh-keydir-only.conf
 ```
 
@@ -553,7 +555,7 @@ Read keys which matches a number of criteria. Zero, one or many keys
 may be returned: 
 
 ```
-BODY='{"keyId": "3E00ACEE4AF601B4", "userId": "alice", "nym": "alice", "givenName": "Joe", "personalNumber": "201701012393", "verified": true}'
+$ BODY='{"keyId": "3E00ACEE4AF601B4", "userId": "alice", "nym": "alice", "givenName": "Joe", "personalNumber": "201701012393", "verified": true}'
 $ curl -K curlrc -d "${BODY}" http://localhost:4436/read
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -615,7 +617,7 @@ QED
 Read alice-bank-id.key with a HKP lookup *get* operation:
 
 ```
-$ curl "http://127.0.0.1:4436/pks/lookup?op=get&search=0x3E00ACEE4AF601B4" | lookup.key
+$ curl "http://127.0.0.1:4436/pks/lookup?op=get&search=0x3E00ACEE4AF601B4" | tee lookup.key
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 mI0EYJ6eagEEALmvkfxRMMXfnyjskb5vD5Y/n8uiEbuEKzFKqV4xEWuBjBRHBk9T
 z19e1Hhm012mFNAZlJvoTavV8Gxg1cPtxoCdHeP7IlGd4WTzu4y/6EVe8E6hDHoD
