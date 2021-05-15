@@ -237,7 +237,7 @@ The "update" request URI must be used to modify already existing keys.
 
 ## Logout with the fingerprint associated with bob.key
 
-Use the bob.key session ticket logout from the kdeydir service:
+Use the bob.key session ticket to logout from the keydir service:
 
 ```
 $ BODY="{\"sessionTicket\": \"${BOB_TICKET}\"}"
