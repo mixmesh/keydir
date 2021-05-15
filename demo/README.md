@@ -259,13 +259,13 @@ That was not a surprise!
 
 ## Login using Bank ID authentication
 
-Login to the keydir server with the fingerprint associated with
+Login to the keydir service with the fingerprint associated with
 alice-bank-id.key (see above) using Bank ID authentication. Do this
-with a single call to http://localhost:4436/bankIdAuth followed by
-continous calls to http://localhost:4436/bankIdCollect during at most
-two minutes and with a two seconds interval between each call.
+with a single request to http://localhost:4436/bankIdAuth followed by
+continous requests to http://localhost:4436/bankIdCollect during at
+most two minutes and with a two seconds interval between each request.
 
-For this to succeed the Personal Number specified in the call to
+For this to succeed the Personal Number specified in the request to
 http://localhost:4436/bankIdAuth **must** match the Personal Number
 negotiated during the Bank ID authentication.
 
@@ -277,7 +277,7 @@ $ curl -K curlrc -d '{"fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0",
 $ ALICE_TICKET = "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="
 ```
 
-The session ticket can now be used to continously call
+The session ticket can now be used to continously request
 http://localhost:4436/bankIdCollect until Bank ID negotiation succeeds
 or fails. In this demo a small shell script is used to do the
 collecting. You can obviously do this manually if you are a really
