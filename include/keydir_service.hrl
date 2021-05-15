@@ -5,7 +5,7 @@
 
 -record(keydir_key,
         {fingerprint :: keydir_service:fingerprint(),
-         key_id :: keydir_service:key_id(),
+         key_id :: keydir_service:key_id() | undefined,
          user_ids = [] :: [keydir_service:user_id()],
          nym :: keydir_service:nym() | undefined,
          given_name :: bank_id:given_name() | undefined,

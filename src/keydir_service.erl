@@ -470,15 +470,18 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                 case session_lookup(SessionDb, SessionTicket) of
                     [#session{fingerprint = Fingerprint}] ->
                         case keydir_delete(KeydirDb, Fingerprint) of
-                            true ->
+                            ok ->
                                 KeyFilename =
                                     filename:join(
                                       [DataDir, EncodedFingerprint]),
                                 ok = file:delete(KeyFilename),
                                 200;
-                            false ->
+                            {error, no_such_key} ->
                                 {json, 404,
-                                 #{<<"errorMessage">> => <<"No such key">>}}
+                                 #{<<"errorMessage">> => <<"No such key">>}};
+                            {error, Reason} ->
+                                ?error_log(Reason),
+                                500
                         end;
                     [] ->
                         ?dbg_log({missing_session_ticket, SessionTicket}),
@@ -806,7 +809,7 @@ keydir_update({Db, FileDb}, Key) ->
 keydir_delete({Db, FileDb}, Fingerprint) ->
     case ets:lookup(Db, Fingerprint) of
         [] ->
-            false;
+            {error, no_such_key};
         [_] ->
             true = ets:delete(Db, Fingerprint),
             dets:delete(FileDb, Fingerprint)

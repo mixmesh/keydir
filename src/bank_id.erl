@@ -1,6 +1,6 @@
 -module(bank_id).
 -export([auth/2, collect/1, cancel/1]).
--export_types([order_ref/0, hint_code/0, given_name/0, personal_number/0]).
+-export_type([order_ref/0, hint_code/0, given_name/0, personal_number/0]).
 
 -include_lib("apptools/include/log.hrl").
 
