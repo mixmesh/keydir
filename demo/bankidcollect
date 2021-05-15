@@ -1,0 +1,30 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]; then
+    >&2 echo "$0 <SESSION-TICKET>"
+    exit 1
+fi
+
+status=0
+
+while true
+do    
+    echo "Calling: curl -s -K curlrc -d '{\"sessionTicket\": \"$1\"}' http://localhost:4436/bankIdCollect"
+    result=$(curl -s -K curlrc -d "{\"sessionTicket\": \"$1\"}" http://localhost:4436/bankIdCollect)
+    case "${result}" in 
+        *complete*)
+            echo "${result}\n"
+            break
+            ;;
+        *pending*)
+            echo "${result}\n"
+            ;;
+        *)
+            echo "Abort: ${result}"
+            status=2
+            break
+    esac
+    sleep 2
+done
+
+exit ${status}
