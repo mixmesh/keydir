@@ -597,7 +597,7 @@ $ BODY="{\"sessionTicket\": \"${CHUCK_TICKET}\", \"fingerprint\": \"35E130DD4304
 $ curl -K curlrc -d "${BODY}" http://localhost:4436/delete
 ```
 
-No news is good news.
+No news is good news!
 
 Try again:
 
