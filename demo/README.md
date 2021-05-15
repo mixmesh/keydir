@@ -113,7 +113,7 @@ $ cat curlrc
 
 The keydir service REST API exports the following request URIs:
 
-* /passwordLogin - Login using password authetication
+* /passwordLogin - Login using password authentication
 * /bankIdAuth - Initialize a Bank ID authentication
 * /bankIdCollect - Wait for a Bank ID app to authenticate a key to be managed
 * /logout - Logout from a password login or a Bank ID authentication
