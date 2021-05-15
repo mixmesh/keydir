@@ -324,7 +324,7 @@ Abort: {
 Oh no! It failed after two minutes. This happens if no Bank ID app was
 started at all.
 
-Lets start the Bank ID app first and try again:
+Lets start the Bank ID app and try again:
 
 ```
 $ curl -K curlrc -d '{"fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0", "personalNumber": "201701012393"}' http://localhost:4436/bankIdAuth
@@ -355,10 +355,9 @@ Calling: curl -s -K curlrc -d '{"sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U3
 It is done! The Bank ID authentication succeeded and the session
 ticket can now be used to perform operations on alice-bank-id.key.
 
-**NOTE**: This **is** a REST API and the above collecting would
-  typically be coded in a nice JavaScript frontend environment.
-
 ## Create alice-bank-id.key
+
+Use the alice-bank-id.key session ticket to create alice-bank-id.key:
 
 ```
 $ KEY=`cat alice-bank-id.key`
@@ -370,7 +369,7 @@ No news is good news!
 
 ## Read bob.key using its fingerprint 
 
-A fingerprint uniquely identifies a single key:
+A fingerprint uniquely identifies a key:
 
 ```
 $ BODY='{"fingerprint": "7B6F0127661B993D584F7875F3B5DF1462C00D87"}'
@@ -398,7 +397,7 @@ Ac8qxj43mO0HjQ==
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
-Using bogus fingerprint results in an error message:
+Using a bogus fingerprint results in an error message:
 
 ```
 $ BODY='{"fingerprint": "FEEDBABEFF"}'
@@ -478,7 +477,7 @@ $ curl -K curlrc -d "${BODY}" http://localhost:4436/read
 }
 ```
 
-Chuck is *indeed* a shifty bastard.
+Chuck is **indeed** a shifty bastard.
 
 Only one key has "bob" as its Mixmesh Nym though:
 
