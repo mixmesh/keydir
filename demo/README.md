@@ -584,17 +584,22 @@ FlpyVL0=
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
-It was somewhat silly to specify all possible filter criteria because
-the Key ID is enough to pinpoint a unique, but you get the gist!
+It was silly to specify all possible filter criteria because the Key
+ID itself was enough to pinpoint a unique key. You get the gist
+though.
 
 ## Delete chuck.key
+
+Use the chuck.key session ticket to delete chuck.key:
 
 ```
 $ BODY="{\"sessionTicket\": \"${CHUCK_TICKET}\", \"fingerprint\": \"35E130DD43043ADC658273019F50A63B44B6A10C\"}"
 $ curl -K curlrc -d "${BODY}" http://localhost:4436/delete
 ```
 
-No news is good news. The key has been deleted.
+No news is good news.
+
+Try again:
 
 ```
 $ curl -K curlrc -d "${BODY}" http://localhost:4436/delete
@@ -607,7 +612,7 @@ QED
 
 ## Perform a HKP pks/lookup operation
 
-Read alice-bank-id.key with a HKP lookup *get* operation (see above):
+Read alice-bank-id.key with a HKP lookup *get* operation:
 
 ```
 $ curl "http://127.0.0.1:4436/pks/lookup?op=get&search=0x3E00ACEE4AF601B4" | lookup.key
@@ -645,7 +650,7 @@ uid                      alice
 sub   elg1024 2021-05-14 [E] [expires: 2022-05-14]
 ```
 
-Read alice-bank-id.key with a HKP lookup *index* operation (see above):
+Read alice-bank-id.key with a HKP lookup *index* operation:
 
 ```
 $ curl "http://127.0.0.1:4436/pks/lookup?op=index&search=0x3E00ACEE4AF601B4"
@@ -665,7 +670,7 @@ $ curl "http://127.0.0.1:4436/pks/lookup?op=index&search=0x3E00ACEE4AF601B4"
 }
 ```
 
-The above index format is somewhat non-standard but the HKP
+The above return format is somewhat non-standard but the HKP
 specification is rather vague on the format anyway.
 
 The gpg command tool can also be used to receive a key using a HKP
@@ -680,12 +685,14 @@ gpg: Total number processed: 1
 Life is good!
 
 TONY: Actually it is not good because of the "rejected by import
-screener". Can you see why this happens?
+screener". Can you see why this happens? I am stumped!!
 
 ## Perform a HKP pks/add operation
+
+Add chuck.key.key with a HKP add request:
 
 ```
 $ curl -X POST -H "Content-Type: application/octet-stream" --data-binary @chuck.key http://127.0.0.1:4436/pks/add
 ```
 
-No news is good news! Mission accomplished.
+No news is good news!
