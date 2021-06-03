@@ -4,7 +4,7 @@
 -include_lib("elgamal/include/elgamal.hrl").
 
 -record(keydir_key,
-        {fingerprint :: keydir_service:fingerprint(),
+        {fingerprint :: keydir_service:fingerprint() | undefined,
          key_id :: keydir_service:key_id() | undefined,
          user_ids = [] :: [keydir_service:user_id()],
          nym :: keydir_service:nym() | undefined,

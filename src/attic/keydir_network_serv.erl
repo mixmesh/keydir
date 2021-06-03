@@ -35,7 +35,7 @@ init(Parent, Address, Port, Timeout) ->
         gen_tcp:listen(Port, [{active, false}, {ip, Address}, {reuseaddr, true},
                               binary]),
     self() ! accepted,
-    ?daemon_log_tag_fmt(system, "Keydir TCP server started on ~s:~w",
+    ?daemon_log_tag_fmt(system, "Keydir TCP server has been started on ~s:~w",
                         [inet:ntoa(Address), Port]),
     {ok, #state{parent = Parent,
                 timeout = Timeout,

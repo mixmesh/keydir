@@ -119,7 +119,7 @@ new_db(Nym, MixmeshDir, Pin, PinSalt) ->
             {error, {file, Reason, DbFilename}}
     end.
 
-%% Exported: new_db
+%% Exported: write_to_db
 
 write_to_db(File, SharedKey, PublicKey) ->
     ok = file:write(File, pack(PublicKey, SharedKey)).
@@ -236,9 +236,8 @@ copy_file(DbFilename) ->
     end.
 
 %% BEWARE: The packing format is interchangble/compatible with the
-%% packing format used in keydir_serv.erl. That way they can share keydir.db
-%% files. Very handy. If you change pack/1 you must do the same in
-%% keydir_serv.erl.
+%% packing performed keydir_service_serv.erl If you change pack/1
+%% below it *must* be kept in sync with keydir_service_serv.erl.
 
 pack(#pk{nym = Nym} = PublicKey, SharedKey) ->
     Nonce = enacl:randombytes(enacl:secretbox_NONCEBYTES()),

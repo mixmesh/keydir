@@ -1,13 +1,65 @@
 -module(keydir_pgp).
--export([decode_key/1]).
+-export([key_to_pk/1, pk_to_key/1, armored_key_to_keydir_key/1]).
 
+-include_lib("elgamal/include/elgamal.hrl").
 -include("../include/keydir_service.hrl").
 
 %%
-%% Exported: decode_key
+%% Exported: key_to_pk
 %%
 
-decode_key(ArmoredPgpKey) ->
+key_to_pk(Key) ->
+    {Packets, Context} = pgp_parse:decode(Key),
+    #{nym := Nym, h := H} = extract_pk_values(Packets, Context, #{}),
+    {ok, #pk{nym = Nym, h = H}}.
+
+extract_pk_values([], _Context, Values) ->
+    Values;
+extract_pk_values([{key, #{key_id := KeyId}}|Rest], Context, Values) ->
+    #{y := Y} = maps:get(KeyId, Context),
+    extract_pk_values(Rest, Context, Values#{h => Y});
+extract_pk_values([{user_id, #{value := Value}}|Rest], Context, Values) ->
+    extract_pk_values(Rest, Context, Values#{nym => Value});
+extract_pk_values([_|Rest], Context, Values) ->
+    extract_pk_values(Rest, Context, Values).
+
+%%
+%% Exported: pk_to_key
+%%
+
+pk_to_key(Pk) ->
+    Key = pk_to_public_encrypt_key(Pk),
+    #{key_id := KeyId, fingerprint := Fingerprint} = Key,
+    Packets = [{key, #{key_id => KeyId}}, {user_id, #{ value => Pk#pk.nym}}],
+    {Data, _Context} = pgp_parse:encode_packets(Packets, #{KeyId => Key}),
+    {ok, Fingerprint, Data}.
+
+pk_to_public_encrypt_key(#pk{h = H}) ->
+    Key = #{type => elgamal,
+            use => [encrypt, sign],
+            creation => {{1971, 1, 1}, {1, 1, 1}},
+            p => ?P,
+            q => ?Q,
+            g => ?G,
+            y => H},
+    KeyData = pgp_keys:encode_public_key(Key),
+    Fingerprint = pgp_util:fingerprint(KeyData),
+    KeyId = pgp_util:fingerprint_to_key_id(Fingerprint),
+    Key#{fingerprint => Fingerprint, key_id => KeyId}.
+
+%%
+%% Exported: armored_key_to_keydir_key
+%%
+
+-spec armored_key_to_keydir_key(ArmoredPgpKey :: binary()) ->
+          {ok, #keydir_key{}} |
+          {error, badcrc |
+                  missing_header |
+                  missing_footer |
+                  bad_footer |
+                  nym_is_missing}.
+
+armored_key_to_keydir_key(ArmoredPgpKey) ->
     case pgp_armor:decode(ArmoredPgpKey) of
         {ok, _Opt, PgpKey} ->
             {DecodedPgpKey, Context} = pgp_parse:decode(PgpKey, #{}),

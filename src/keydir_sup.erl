@@ -11,28 +11,6 @@ start_link() ->
 %% Exported: init
 
 init([]) ->
-    RemoteKeydirServerSpecs =
-        case config:lookup(['remote-keydir-server', enabled]) of
-            true ->
-                [{RemoteKeydirServerAddress, RemoteKeydirServerPort},
-                 Timeout, RemoteKeydirServerDataDir] =
-                    config:lookup_children(
-                      [address, timeout, 'data-dir'],
-                      config:lookup(['remote-keydir-server'])),
-                KeydirServSpec =
-                    #{id => keydir_serv,
-                      start => {keydir_serv, start_link,
-                                [RemoteKeydirServerDataDir]}},
-                KeydirNetworkServSpec =
-                    #{id => keydir_network_serv,
-                      start => {keydir_network_serv, start_link,
-                                [RemoteKeydirServerAddress,
-                                 RemoteKeydirServerPort,
-                                 Timeout]}},
-                [KeydirServSpec, KeydirNetworkServSpec];
-            false ->
-                []
-        end,
     KeydirServiceSpecs =
         case config:lookup(['keydir-service', enabled]) of
             true ->
@@ -52,5 +30,4 @@ init([]) ->
             false ->
                 []
         end,
-    {ok, {#{strategy => one_for_all},    
-          RemoteKeydirServerSpecs ++ KeydirServiceSpecs}}.
+    {ok, {#{strategy => one_for_all}, KeydirServiceSpecs}}.

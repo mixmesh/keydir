@@ -1,7 +1,8 @@
 -module(keydir_service).
 -export([start_link/4, bin_to_hexstr/1, hexstr_to_bin/1]).
 -export([purge_sessions/1, handle_http_request/4]).
--export_type([key_id/0, user_id/0, nym/0, password/0]).
+-export_type([key_id/0, fingerprint/0, user_id/0, nym/0, password/0, access/0,
+              keydir_db/0]).
 
 -include_lib("apptools/include/log.hrl").
 -include_lib("apptools/include/shorthand.hrl").
@@ -12,14 +13,18 @@
 -define(VALID_UNTIL_TIME, (60 * 60)). % 1 hour (a tad long)
 -define(SESSION_PURGE_TIME, 15000). % 15 seconds
 
+-type session_ticket() :: binary().
 -type key_id() :: binary().
 -type fingerprint() :: binary().
 -type user_id() :: binary().
 -type nym() :: binary().
 -type password() :: binary().
+-type access() ::
+        {inet:ip4_address() | inet:hostname(), inet:port_number()}.
+-type keydir_db() :: {ets:tid(), reference()}.
 
 -record(session,
-        {session_ticket :: binary() | undefined,
+        {session_ticket :: session_ticket() | undefined,
          type :: {password, password()} |
                  {bank_id,
                   {pending, bank_id:order_ref(), bank_id:hint_code()}} |
@@ -48,7 +53,8 @@ start_link(Address, Port, CertFilename, DataDir) ->
 	 {certfile, CertFilename},
 	 {nodelay, true},
 	 {reuseaddr, true}],
-    ?daemon_log_tag_fmt(system, "Keydir service started on ~s:~w",
+    {ok, _} = keydir_service_serv:start_link(KeydirDb, DataDir),
+    ?daemon_log_tag_fmt(system, "Keydir service has been started on ~s:~w",
                         [inet:ntoa(Address), Port]),
     rester_http_server:start_link(Port, ResterHttpArgs).
 
@@ -558,7 +564,7 @@ insert_key(DataDir, SessionDb, KeydirDb, EncodedKey,
            #session{type = SessionType,
                     fingerprint = SessionFingerprint} = Session,
            Mode) ->
-    case keydir_pgp:decode_key(EncodedKey) of
+    case keydir_pgp:armored_key_to_keydir_key(EncodedKey) of
         {ok, #keydir_key{given_name = GivenName,
                          personal_number = PersonalNumber} = Key} ->
             ok = assert_session(SessionFingerprint, Key),
@@ -691,7 +697,7 @@ update_key(DataDir, SessionDb, KeydirDb, EncodedKey, Session) ->
 %%
 
 create_hkp_key(DataDir, KeydirDb, EncodedKey) ->
-    case keydir_pgp:decode_key(EncodedKey) of
+    case keydir_pgp:armored_key_to_keydir_key(EncodedKey) of
         {ok, #keydir_key{given_name = undefined,
                          personal_number = undefined} = Key} ->
             store_key(
@@ -734,7 +740,7 @@ new_keydir_db(KeydirDir) ->
     Db = dets:to_ets(FileDb, Db),
     ?dbg_log({initial_keydir_db, ets:tab2list(Db)}),
     {Db, FileDb}.
-
+    
 keydir_create({Db, FileDb}, Key) ->
     case ets:lookup(Db, Key#keydir_key.fingerprint) of
         [] ->

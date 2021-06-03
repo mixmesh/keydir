@@ -1,5 +1,4 @@
 [
- test_keydir_serv,
- test_keydir_network_serv,
- test_keydir_service
+ test_keydir_service,
+ test_keydir_pgp
 ].
