@@ -3,12 +3,16 @@
 -export([start_link/0]).
 -export([init/1]).
 
+%%
 %% Exported: start_link
+%%
 
 start_link() ->
     supervisor:start_link(?MODULE, []).
 
+%%
 %% Exported: init
+%%
 
 init([]) ->
     KeydirServiceSpecs =

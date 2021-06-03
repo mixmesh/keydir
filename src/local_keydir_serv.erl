@@ -16,7 +16,9 @@
                 db_filename :: binary(),
                 fd :: file:io_device()}).
 
+%%
 %% Exported: start_link
+%%
 
 -spec start_link(binary()) ->
           serv:spawn_server_result() |
@@ -50,28 +52,36 @@ init(Parent, LocalKeydirDir) ->
             {error, {file_error, Reason}}
     end.
 
+%%
 %% Exported: stop
+%%
 
 -spec stop(serv:name()) -> ok.
 
 stop(KeydirServName) ->
     serv:cast(KeydirServName, stop).
 
+%%
 %% Exported: create
+%%
 
 -spec create(serv:name(), #pk{}) -> ok | {error, key_already_exists}.
 
 create(KeydirServName, PublicKey) ->
     serv:call(KeydirServName, {create, PublicKey}).
 
+%%
 %% Exported: read
+%%
 
 -spec read(serv:name(), binary()) -> {ok, #pk{}} | {error, no_such_key}.
 
 read(KeydirServName, Nym) ->
     serv:call(KeydirServName, {read, Nym}).
 
+%%
 %% Exported: update
+%%
 
 -spec update(serv:name(), #pk{}) ->
           ok | {error, no_such_key}.
@@ -79,7 +89,9 @@ read(KeydirServName, Nym) ->
 update(KeydirServName, PublicKey) ->
     serv:call(KeydirServName, {update, PublicKey}).
 
+%%
 %% Exported: delete
+%%
 
 -spec delete(serv:name(), binary()) ->
           ok | {error, no_such_key}.
@@ -87,7 +99,9 @@ update(KeydirServName, PublicKey) ->
 delete(KeydirServName, Nym) ->
     serv:call(KeydirServName, {delete, Nym}).
 
+%%
 %% Exported: list
+%%
 
 -spec list(serv:name(), {substring, binary()} | all,
            non_neg_integer()) ->
@@ -96,14 +110,18 @@ delete(KeydirServName, Nym) ->
 list(KeydirServName, NymPattern, N) ->
     serv:call(KeydirServName, {list, NymPattern, N}).
 
+%%
 %% Exported: all_nyms
+%%
 
 -spec all_nyms(serv:name()) -> {ok, [binary()]}.
 
 all_nyms(KeydirServName) ->
     serv:call(KeydirServName, all_nyms).
 
+%%
 %% Exported: new_db
+%%
 
 new_db(Nym, MixmeshDir, Pin, PinSalt) ->
     LocalKeydirDir =
@@ -119,12 +137,16 @@ new_db(Nym, MixmeshDir, Pin, PinSalt) ->
             {error, {file, Reason, DbFilename}}
     end.
 
+%%
 %% Exported: write_to_db
+%%
 
 write_to_db(File, SharedKey, PublicKey) ->
     ok = file:write(File, pack(PublicKey, SharedKey)).
 
+%%
 %% Exported: strerror
+%%
 
 -spec strerror({file_error, any()} |
                key_already_exists |
