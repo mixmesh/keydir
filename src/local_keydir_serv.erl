@@ -67,8 +67,8 @@ stop(KeydirServName) ->
 
 -spec create(serv:name(), #pk{}) -> ok | {error, key_already_exists}.
 
-create(KeydirServName, PublicKey) ->
-    serv:call(KeydirServName, {create, PublicKey}).
+create(KeydirServName, Pk) ->
+    serv:call(KeydirServName, {create, Pk}).
 
 %%
 %% Exported: read
@@ -86,8 +86,8 @@ read(KeydirServName, Nym) ->
 -spec update(serv:name(), #pk{}) ->
           ok | {error, no_such_key}.
 
-update(KeydirServName, PublicKey) ->
-    serv:call(KeydirServName, {update, PublicKey}).
+update(KeydirServName, Pk) ->
+    serv:call(KeydirServName, {update, Pk}).
 
 %%
 %% Exported: delete
@@ -141,8 +141,8 @@ new_db(Nym, MixmeshDir, Pin, PinSalt) ->
 %% Exported: write_to_db
 %%
 
-write_to_db(File, SharedKey, PublicKey) ->
-    ok = file:write(File, pack(PublicKey, SharedKey)).
+write_to_db(File, SharedKey, Pk) ->
+    ok = file:write(File, pack(Pk, SharedKey)).
 
 %%
 %% Exported: strerror
@@ -179,13 +179,13 @@ message_handler(#state{parent = Parent,
         {cast, stop} ->
             file:close(Fd),
             stop;
-        {call, From, {create, PublicKey}} ->
-            case ets:lookup(Db, PublicKey#pk.nym) of
+        {call, From, {create, Pk}} ->
+            case ets:lookup(Db, Pk#pk.nym) of
                 [_] ->
                     {reply, From, {error, key_already_exists}};
                 [] ->
-                    true = ets:insert(Db, PublicKey),
-                    ok = file:write(Fd, pack(PublicKey, SharedKey)),
+                    true = ets:insert(Db, Pk),
+                    ok = file:write(Fd, pack(Pk, SharedKey)),
                     ok = file:sync(Fd),
                     {reply, From, ok}
             end;
@@ -193,15 +193,15 @@ message_handler(#state{parent = Parent,
             case ets:lookup(Db, Nym)  of
                 [] ->
                     {reply, From, {error, no_such_key}};
-                [PublicKey] ->
-                    {reply, From, {ok, PublicKey}}
+                [Pk] ->
+                    {reply, From, {ok, Pk}}
             end;
-        {call, From, {update, #pk{nym = Nym} = PublicKey}} ->
+        {call, From, {update, #pk{nym = Nym} = Pk}} ->
             case ets:lookup(Db, Nym) of
                 [] ->
                     {reply, From, {error, no_such_key}};
                 [_] ->
-                    true = ets:insert(Db, PublicKey),
+                    true = ets:insert(Db, Pk),
                     file:close(Fd),
                     {ok, NewFd} = export_file(Db, DbFilename, SharedKey),
                     {reply, From, ok, State#state{fd = NewFd}}
@@ -261,7 +261,7 @@ copy_file(DbFilename) ->
 %% packing performed keydir_service_serv.erl If you change pack/1
 %% below it *must* be kept in sync with keydir_service_serv.erl.
 
-pack(#pk{nym = Nym} = PublicKey, SharedKey) ->
+pack(#pk{nym = Nym} = Pk, SharedKey) ->
     Nonce = enacl:randombytes(enacl:secretbox_NONCEBYTES()),
     NonceSize = size(Nonce),
     NymSize = size(Nym),
@@ -269,7 +269,7 @@ pack(#pk{nym = Nym} = PublicKey, SharedKey) ->
     PasswordSize = size(Password),
     Email = <<>>,
     EmailSize = size(Email),
-    PublicKeyBin = elgamal:public_key_to_binary(PublicKey),
+    PublicKeyBin = elgamal:pk_to_binary(Pk),
     PublicKeyBinSize = size(PublicKeyBin),
     Entry =
         <<NymSize:16/unsigned-integer,
@@ -304,8 +304,8 @@ import_file(Fd, Db, SharedKey) ->
                    PublicKeySize:16/unsigned-integer,
                    PublicKeyBin:PublicKeySize/binary>>} =
                 enacl:secretbox_open(EncryptedEntry, Nonce, SharedKey),
-            PublicKey = elgamal:binary_to_public_key(PublicKeyBin),
-            true = ets:insert(Db, PublicKey),
+            Pk = elgamal:binary_to_pk(PublicKeyBin),
+            true = ets:insert(Db, Pk),
             import_file(Fd, Db, SharedKey);
         {error, Reason} ->
             {error, Reason}
@@ -314,8 +314,8 @@ import_file(Fd, Db, SharedKey) ->
 export_file(Db, DbFilename, SharedKey) ->
     _ = file:delete(DbFilename),
     {ok, Fd} = file:open(DbFilename, [read, write, binary]),
-    ok = ets:foldl(fun(PublicKey, ok) ->
-                           file:write(Fd, pack(PublicKey, SharedKey))
+    ok = ets:foldl(fun(Pk, ok) ->
+                           file:write(Fd, pack(Pk, SharedKey))
                    end, ok, Db),
     ok = file:sync(Fd),
     {ok, Fd}.
@@ -325,13 +325,13 @@ list_keys(_Db, _NymPattern, 0, _Nym) ->
 list_keys(_Db, _NymPattern, _N, '$end_of_table') ->
     [];
 list_keys(Db, all, N, Nym) ->
-    [PublicKey] = ets:lookup(Db, Nym),
-    [PublicKey|list_keys(Db, all, N - 1, ets:next(Db, Nym))];
+    [Pk] = ets:lookup(Db, Nym),
+    [Pk|list_keys(Db, all, N - 1, ets:next(Db, Nym))];
 list_keys(Db, {substring, SubStringNym} = NymPattern, N, Nym) ->
     case string:find(Nym, SubStringNym, leading) of
         nomatch ->
             list_keys(Db, NymPattern, N, ets:next(Db, Nym));
         _ ->
-            [PublicKey] = ets:lookup(Db, Nym),
-            [PublicKey|list_keys(Db, NymPattern, N - 1, ets:next(Db, Nym))]
+            [Pk] = ets:lookup(Db, Nym),
+            [Pk|list_keys(Db, NymPattern, N - 1, ets:next(Db, Nym))]
     end.
