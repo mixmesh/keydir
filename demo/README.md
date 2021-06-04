@@ -135,7 +135,8 @@ https://keys.openpgp.org/about/api.
 Use the bogus fingerprint "FEEDBABEFF" to read a non-existing key:
 
 ```
-$ curl -K curlrc -d '{"fingerprint": "FEEDBABEFF"}' http://localhost:4436/read
+$ URL=http://localhost:4436
+curl -K curlrc -d '{"fingerprint": "FEEDBABEFF"}' $URL/read
 {
   "errorMessage": "No such key"
 }
@@ -153,7 +154,7 @@ Login to the keydir service with the fingerprint associated with bob.key
 
 ```
 $ BODY='{"fingerprint": "7B6F0127661B993D584F7875F3B5DF1462C00D87", "password": "mortuta42"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/passwordLogin
+$ curl -K curlrc -d "${BODY}" $URL/passwordLogin
 {
   "sessionTicket": "zy2ZmY02KUaKeJp0fX8NJdPg1RwTanxrO9IqZRaDgFo="
 }
@@ -178,7 +179,7 @@ fail:
 ```
 $ KEY=`cat chuck.key`
 $ BODY="{\"sessionTicket\": \"${BOB_TICKET}\", \"key\": \"${KEY}\"}"
-$ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
+$ curl -K curlrc -d "${BODY//$'\n'/\\n}" $URL/create
 {
   "errorMessage": "Fingerprint does not match login credentials"
 }
@@ -193,7 +194,7 @@ Use the bob.key session ticket to create bob.key:
 ```
 $ KEY=`cat bob.key`
 $ BODY="{\"sessionTicket\": \"${BOB_TICKET}\", \"key\": \"${KEY}\"}"
-$ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
+$ curl -K curlrc -d "${BODY//$'\n'/\\n}" $URL/create
 ```
 
 No news is good news!
@@ -205,7 +206,7 @@ chuck.key (see above) and a nice password.
 
 ```
 $ BODY='{"fingerprint": "35E130DD43043ADC658273019F50A63B44B6A10C", "password": "mortuta42"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/passwordLogin
+$ curl -K curlrc -d "${BODY}" $URL/passwordLogin
 {
   "sessionTicket": "WSCX3lYwESQ/wcWQLC8agP7m1MK571ba6ugcu/0ORHg="
 }
@@ -221,7 +222,7 @@ Use the chuck.key session ticket to create chuck.key:
 ```
 $ KEY=`cat chuck.key`
 $ BODY="{\"sessionTicket\": \"${CHUCK_TICKET}\", \"key\": \"${KEY}\"}"
-$ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
+$ curl -K curlrc -d "${BODY//$'\n'/\\n}" $URL/create
 ```
 
 No news is good news!
@@ -229,7 +230,7 @@ No news is good news!
 Only non-existing keys can be created:
 
 ```
-$ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
+$ curl -K curlrc -d "${BODY//$'\n'/\\n}" $URL/create
 {
   "errorMessage": "Key already exists"
 }
@@ -243,7 +244,7 @@ Use the bob.key session ticket to logout from the keydir service:
 
 ```
 $ BODY="{\"sessionTicket\": \"${BOB_TICKET}\"}"
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/logout
+$ curl -K curlrc -d "${BODY}" $URL/logout
 ```
 
 No news is good news!
@@ -251,7 +252,7 @@ No news is good news!
 Just to be sure. Try to logout again:
 
 ```
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/logout
+$ curl -K curlrc -d "${BODY}" $URL/logout
 }
   "errorMessage": "No such session"
 }
@@ -263,16 +264,16 @@ That was not a surprise!
 
 Login to the keydir service with the fingerprint associated with
 alice-bank-id.key (see above) using Bank ID authentication. Do this
-with a single request to http://localhost:4436/bankIdAuth followed by
-continous requests to http://localhost:4436/bankIdCollect during at
+with a single request to $URL/bankIdAuth followed by
+continous requests to $URL/bankIdCollect during at
 most two minutes and with a two seconds interval between each request.
 
 For this to succeed the Personal Number specified in the request to
-http://localhost:4436/bankIdAuth **must** match the Personal Number
+$URL/bankIdAuth **must** match the Personal Number
 negotiated during the Bank ID authentication.
 
 ```
-$ curl -K curlrc -d '{"fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0", "personalNumber": "201701012393"}' http://localhost:4436/bankIdAuth
+$ curl -K curlrc -d '{"fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0", "personalNumber": "201701012393"}' $URL/bankIdAuth
 {
   "sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="
 }
@@ -280,7 +281,7 @@ $ ALICE_TICKET = "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="
 ```
 
 The session ticket can now be used to continously request
-http://localhost:4436/bankIdCollect until Bank ID negotiation succeeds
+$URL/bankIdCollect until Bank ID negotiation succeeds
 or fails. In this demo a small shell script is used to do the
 collecting. You can obviously do this manually if you are a really
 fast typer. :-) 
@@ -288,13 +289,13 @@ fast typer. :-)
 ```
 $ ./bankidcollect ${ALICE_TICKET}
 
-Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' $URL/bankIdCollect
 {
   "hintCode": "outstandingTransaction",
   "status": "pending"
 }
 
-Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' $URL/bankIdCollect
 {
   "hintCode": "outstandingTransaction",
   "status": "pending"
@@ -302,13 +303,13 @@ Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqK
 
 ...
 
-Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' $URL/bankIdCollect
 {
   "hintCode": "noClient",
   "status": "pending"
 }
 
-Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' $URL/bankIdCollect
 {
   "hintCode": "noClient",
   "status": "pending"
@@ -316,7 +317,7 @@ Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqK
 
 ...
 
-Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "SY5ht5B/KCfhgWac5p/CoxguGwidqKcTBZMUM2VbILU="}' $URL/bankIdCollect
 Abort: {
   "hintCode": "expiredTransaction",
   "status": "failed"
@@ -329,7 +330,7 @@ started at all.
 Lets start the Bank ID app and try again:
 
 ```
-$ curl -K curlrc -d '{"fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0", "personalNumber": "201701012393"}' http://localhost:4436/bankIdAuth
+$ curl -K curlrc -d '{"fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0", "personalNumber": "201701012393"}' $URL/bankIdAuth
 {
   "sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U34EPYUb+UyWpBI="
 }
@@ -340,7 +341,7 @@ Followed by:
 
 ```
 $ ./bankidcollect ${ALICE_TICKET}
-Calling: curl -s -K curlrc -d '{"sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U34EPYUb+UyWpBI="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U34EPYUb+UyWpBI="}' $URL/bankIdCollect
 {
   "hintCode": "userSign",
   "status": "pending"
@@ -348,7 +349,7 @@ Calling: curl -s -K curlrc -d '{"sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U3
 
 ...
 
-Calling: curl -s -K curlrc -d '{"sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U34EPYUb+UyWpBI="}' http://localhost:4436/bankIdCollect
+Calling: curl -s -K curlrc -d '{"sessionTicket": "UjoHrrwWnZtspLd8Atv2zTujKp59U34EPYUb+UyWpBI="}' $URL/bankIdCollect
 {
   "status": "complete"
 }
@@ -364,7 +365,7 @@ Use the alice-bank-id.key session ticket to create alice-bank-id.key:
 ```
 $ KEY=`cat alice-bank-id.key`
 $ BODY="{\"sessionTicket\": \"${ALICE_TICKET}\", \"key\": \"${KEY}\"}"
-$ curl -K curlrc -d "${BODY//$'\n'/\\n}" http://localhost:4436/create
+$ curl -K curlrc -d "${BODY//$'\n'/\\n}" $URL/create
 ```
 
 No news is good news!
@@ -375,7 +376,7 @@ A fingerprint uniquely identifies a key:
 
 ```
 $ BODY='{"fingerprint": "7B6F0127661B993D584F7875F3B5DF1462C00D87"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ curl -K curlrc -d "${BODY}" $URL/read
 ----BEGIN PGP PUBLIC KEY BLOCK-----
 mI0EYJv2FAEEAMuxgKZPxFh3//vqXUGVGJ1ZbmUP0BanOBppUY8Hy6fNfp2F61sv
 gUUc/l3xg9bdoPlNfiz+HqDc6GC+QWT7jWpcUNOufpCwT3aq6Mq0KXlLqCk6LnfO
@@ -403,7 +404,7 @@ Using a bogus fingerprint results in an error message:
 
 ```
 $ BODY='{"fingerprint": "FEEDBABEFF"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ curl -K curlrc -d "${BODY}" $URL/read
 {
   "errorMessage": "No such key"
 }
@@ -416,12 +417,12 @@ be returned:
 
 ```
 $ BODY='{"userId": "alice"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ curl -K curlrc -d "${BODY}" $URL/read
 {
   "keys": [
     {
       "fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0",
-      "keyId": "3E00ACEE4AF601B4",
+      "keyId": "35B51ACAC65404B0",
       "nym": "alice",
       "personalNumber": "201701012393",
       "userIds": [
@@ -431,7 +432,7 @@ $ curl -K curlrc -d "${BODY}" http://localhost:4436/read
     },
     {
       "fingerprint": "35E130DD43043ADC658273019F50A63B44B6A10C",
-      "keyId": "35E130DD43043ADC",
+      "keyId": "9F50A63B44B6A10C",
       "nym": "alice",
       "userIds": [
         "bob",
@@ -452,12 +453,12 @@ may be returned:
 
 ```
 $ BODY='{"nym": "alice"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ curl -K curlrc -d "${BODY}" $URL/read
 {
   "keys": [
     {
       "fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0",
-      "keyId": "3E00ACEE4AF601B4",
+      "keyId": "35B51ACAC65404B0",
       "nym": "alice",
       "personalNumber": "201701012393",
       "userIds": [
@@ -467,7 +468,7 @@ $ curl -K curlrc -d "${BODY}" http://localhost:4436/read
     },
     {
       "fingerprint": "35E130DD43043ADC658273019F50A63B44B6A10C",
-      "keyId": "35E130DD43043ADC",
+      "keyId": "9F50A63B44B6A10C",
       "nym": "alice",
       "userIds": [
         "bob",
@@ -485,7 +486,7 @@ Only one key has "bob" as its Mixmesh Nym though:
 
 ```
 $ BODY='{"nym": "bob"}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ curl -K curlrc -d "${BODY}" $URL/read
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 mI0EYJ5nWQEEAKQTD0d+QR6buEvm+BWO0GV29CRtPSYIbc6Th8weVAZ+x+kNzDk7
 BxwMKqRagysF71BXw5U7IEvwuwt+HVP9cZm3yMUGv9jwXu4+iHfhYWH68mDcTw0R
@@ -518,7 +519,7 @@ Bank ID authentication. Zero, one or many keys may be returned:
 
 ```
 $ BODY='{"nym": "alice", "verified": true}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ curl -K curlrc -d "${BODY}" $URL/read
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 mI0EYJ6eagEEALmvkfxRMMXfnyjskb5vD5Y/n8uiEbuEKzFKqV4xEWuBjBRHBk9T
 z19e1Hhm012mFNAZlJvoTavV8Gxg1cPtxoCdHeP7IlGd4WTzu4y/6EVe8E6hDHoD
@@ -555,8 +556,8 @@ Read keys which matches a number of criteria. Zero, one or many keys
 may be returned: 
 
 ```
-$ BODY='{"keyId": "3E00ACEE4AF601B4", "userId": "alice", "nym": "alice", "givenName": "Joe", "personalNumber": "201701012393", "verified": true}'
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/read
+$ BODY='{"keyId": "35B51ACAC65404B0", "userId": "alice", "nym": "alice", "givenName": "Joe", "personalNumber": "201701012393", "verified": true}'
+$ curl -K curlrc -d "${BODY}" $URL/read
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mI0EYJ6eagEEALmvkfxRMMXfnyjskb5vD5Y/n8uiEbuEKzFKqV4xEWuBjBRHBk9T
@@ -596,7 +597,7 @@ Use the chuck.key session ticket to delete chuck.key:
 
 ```
 $ BODY="{\"sessionTicket\": \"${CHUCK_TICKET}\", \"fingerprint\": \"35E130DD43043ADC658273019F50A63B44B6A10C\"}"
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/delete
+$ curl -K curlrc -d "${BODY}" $URL/delete
 ```
 
 No news is good news!
@@ -604,7 +605,7 @@ No news is good news!
 Try again:
 
 ```
-$ curl -K curlrc -d "${BODY}" http://localhost:4436/delete
+$ curl -K curlrc -d "${BODY}" $URL/delete
 {
   "errorMessage": "No such key"
 }
@@ -617,7 +618,7 @@ QED
 Read alice-bank-id.key with a HKP lookup *get* operation:
 
 ```
-$ curl "http://127.0.0.1:4436/pks/lookup?op=get&search=0x3E00ACEE4AF601B4" | tee lookup.key
+$ curl "$URL/pks/lookup?op=get&search=0x35B51ACAC65404B0" | tee lookup.key
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 mI0EYJ6eagEEALmvkfxRMMXfnyjskb5vD5Y/n8uiEbuEKzFKqV4xEWuBjBRHBk9T
 z19e1Hhm012mFNAZlJvoTavV8Gxg1cPtxoCdHeP7IlGd4WTzu4y/6EVe8E6hDHoD
@@ -655,12 +656,12 @@ sub   elg1024 2021-05-14 [E] [expires: 2022-05-14]
 Read alice-bank-id.key with a HKP lookup *index* operation:
 
 ```
-$ curl "http://127.0.0.1:4436/pks/lookup?op=index&search=0x3E00ACEE4AF601B4"
+$ curl "http://127.0.0.1:4436/pks/lookup?op=index&search=0x35B51ACAC65404B0"
 {
   "keys": [
     {
       "fingerprint": "3E00ACEE4AF601B42547243335B51ACAC65404B0",
-      "keyId": "3E00ACEE4AF601B4",
+      "keyId": "35B51ACAC65404B0",
       "nym": "alice",
       "personalNumber": "201701012393",
       "userIds": [
@@ -679,15 +680,12 @@ The gpg command tool can also be used to receive a key using a HKP
 lookup:
 
 ```
-$ gpg --dry-run --keyserver hkp://localhost:4436 --recv-keys 3E00ACEE4AF601B4
+$ gpg --dry-run --keyserver hkp://localhost:4436 --recv-keys 35B51ACAC65404B0
 gpg: key 35B51ACAC65404B0: rejected by import screener
 gpg: Total number processed: 1
 ```
 
 Life is good!
-
-TONY: Actually it is not good because of the "rejected by import
-screener". Can you see why this happens? I am stumped!!
 
 ## Perform a HKP pks/add operation
 
