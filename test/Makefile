@@ -21,7 +21,7 @@ bob.key:
 	./mkkey bob.key "MM-NYM:bob"
 
 chuck.key:
-	./mkkey chuck.key "MM-NYM:alice" bob alice
+	./mkkey chuck.key "MM-NYM:alice" bob alice chuck
 
 fred.key:
 	./mkkey fred.key "MM-NYM:fred"

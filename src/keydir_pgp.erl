@@ -30,7 +30,7 @@ extract_pk_values([_|Rest], Context, Values) ->
 pk_to_key(Pk) ->
     Key = pk_to_public_encrypt_key(Pk),
     #{key_id := KeyId, fingerprint := Fingerprint} = Key,
-    Packets = [{key, #{key_id => KeyId}}, {user_id, #{ value => Pk#pk.nym}}],
+    Packets = [{key, #{key_id => KeyId}}, {user_id, #{value => Pk#pk.nym}}],
     {Data, _Context} = pgp_parse:encode_packets(Packets, #{KeyId => Key}),
     {ok, Fingerprint, Data}.
 

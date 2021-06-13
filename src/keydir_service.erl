@@ -150,6 +150,23 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                                 MultipleKeys when is_list(MultipleKeys) ->
                                     501
                             end;
+                        {value, {_, UserId}} ->
+                            case keydir_read(KeydirDb,
+                                             #{user_id => ?l2b(UserId)}) of
+                                [#keydir_key{fingerprint = Fingerprint}] ->
+                                    EncodedFingerprint =
+                                        bin_to_hexstr(Fingerprint),
+                                    KeyFilename =
+                                        filename:join(
+                                          [DataDir, EncodedFingerprint]),
+                                    {200, {file, KeyFilename},
+                                     [{content_type, "text/plain"}]};
+                                [] ->
+                                    404;
+                                MultipleKeys when is_list(MultipleKeys) ->
+                                    io:format("MAJS: ~p\n", [MultipleKeys]),
+                                    501
+                            end;
                         {value, _} ->
                             501;
                         false ->
@@ -749,13 +766,14 @@ keydir_create({Db, FileDb}, Key) ->
             {error, already_exists}
     end.
 
-keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter,
-                             key_id := KeyIdFilter,
-                             user_id := UserIdFilter,
-                             nym := NymFilter,
-                             given_name := GivenNameFilter,
-                             personal_number := PersonalNumberFilter,
-                             verified := VerifiedFilter}) ->
+keydir_read({Db, _FileDb}, FilterMap) ->
+    FingerprintFilter = maps:get(fingerprint, FilterMap, undefined),
+    KeyIdFilter = maps:get(key_id, FilterMap, undefined),
+    UserIdFilter = maps:get(user_id, FilterMap, undefined),
+    NymFilter = maps:get(nym, FilterMap, undefined),
+    GivenNameFilter = maps:get(given_name, FilterMap, undefined),
+    PersonalNumberFilter = maps:get(personal_number, FilterMap, undefined),
+    VerifiedFilter = maps:get(verified, FilterMap, undefined),
     ets:foldl(fun(#keydir_key{
                      fingerprint = Fingerprint,
                      key_id = KeyId,
@@ -788,22 +806,6 @@ keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter,
                               end
                       end;
                  (_Key, Acc) ->
-                      Acc
-              end, [], Db);
-keydir_read({Db, _FileDb}, #{fingerprint := FingerprintFilter}) ->
-    ets:lookup(Db, FingerprintFilter);
-keydir_read({Db, _FileDb}, #{key_id := KeyIdFilter}) ->
-    ets:foldl(fun(#keydir_key{key_id = KeyId} = Key, Acc)
-                    when KeyIdFilter == KeyId ->
-                      [Key|Acc];
-                 (_, Acc) ->
-                      Acc
-              end, [], Db);
-keydir_read({Db, _FileDb}, #{nym := NymFilter}) ->
-    ets:foldl(fun(#keydir_key{nym = Nym} = Key, Acc)
-                    when NymFilter == Nym ->
-                      [Key|Acc];
-                 (_, Acc) ->
                       Acc
               end, [], Db).
 

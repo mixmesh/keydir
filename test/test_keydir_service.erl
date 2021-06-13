@@ -163,7 +163,7 @@ start(LoginMode) ->
               [#{<<"fingerprint">> => EncodedChuckFingerprint,
                  <<"keyId">> => EncodedChuckKeyId,
                  <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"userIds">> => [<<"bob">>, <<"alice">>, <<"chuck">>],
                  <<"verified">> => false},
                #{<<"fingerprint">> => EncodedAliceFingerprint,
                  <<"keyId">> => EncodedAliceKeyId,
@@ -176,7 +176,7 @@ start(LoginMode) ->
               [#{<<"fingerprint">> => EncodedChuckFingerprint,
                  <<"keyId">> => EncodedChuckKeyId,
                  <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"userIds">> => [<<"bob">>, <<"alice">>, <<"chuck">>],
                  <<"verified">> => false},
                #{<<"fingerprint">> => EncodedAliceFingerprint,
                  <<"givenName">> => <<"Joe">>,
@@ -210,7 +210,7 @@ start(LoginMode) ->
               [#{<<"fingerprint">> => EncodedChuckFingerprint,
                  <<"keyId">> => EncodedChuckKeyId,
                  <<"nym">> => <<"alice">>,
-                 <<"userIds">> => [<<"bob">>, <<"alice">>],
+                 <<"userIds">> => [<<"bob">>, <<"alice">>, <<"chuck">>],
                  <<"verified">> => false},
                #{<<"fingerprint">> => EncodedAliceFingerprint,
                  <<"keyId">> => EncodedAliceKeyId,
@@ -243,10 +243,15 @@ start(LoginMode) ->
           "https://127.0.0.1:4436/pks/lookup?op=get&search=0xfeedbabeff"),
     
     %%
-    io:format("**** Read Alice's key using manual HKP lookup/get\n"),
+    io:format("**** Read Alice's key using manual HKP key-id lookup/get\n"),
     {ok, 200, AliceKey} =
         http_get("https://127.0.0.1:4436/pks/lookup?op=get&search=0x" ++
                      ?b2l(EncodedAliceKeyId)),
+
+    %%
+    io:format("**** Read Chuck's key using manual HKP user-id lookup/get\n"),
+    {ok, 200, ChuckKey} =
+        http_get("https://127.0.0.1:4436/pks/lookup?op=get&search=chuck"),
     
     %%
     io:format("**** Search Alice's key using manual HKP lookup/index\n"),
