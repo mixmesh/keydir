@@ -1,8 +1,20 @@
 -module(keydir_pgp).
--export([key_to_pk/1, pk_to_key/1, armored_key_to_keydir_key/1]).
+-export([key_to_pk/1, pk_to_key/1, armored_key_to_keydir_key/1,
+         format_index/2]).
 
+-include_lib("apptools/include/shorthand.hrl").
 -include_lib("elgamal/include/elgamal.hrl").
 -include("../include/keydir_service.hrl").
+
+%% Section references can be found in
+%% https://tools.ietf.org/pdf/draft-ietf-openpgp-rfc4880bis-10.pdf
+
+%% Section 9.1: Public-Key Algorithms
+-define(PUBLIC_KEY_ALGORITHM_RSA_ENCRYPT_OR_SIGN, 1).
+-define(PUBLIC_KEY_ALGORITHM_RSA_ENCRYPT, 2).
+-define(PUBLIC_KEY_ALGORITHM_RSA_SIGN, 3).
+-define(PUBLIC_KEY_ALGORITHM_ELGAMAL, 16).
+-define(PUBLIC_KEY_ALGORITHM_DSA, 17).
 
 %%
 %% Exported: key_to_pk
@@ -110,3 +122,86 @@ get_nym(_RemaininUserIds, #keydir_key{nym = Nym}) when Nym /= undefined ->
     {ok, Nym};
 get_nym([UserId|_], _Key) ->
     {ok, UserId}.
+
+%%
+%% Exported: format_index
+%%
+
+format_index(ReadArmoredPgpKey, Keys) ->
+    ?l2b([<<"info:1:">>, ?i2b(length(Keys)), <<"\n">>|
+          format_index_keys(ReadArmoredPgpKey, Keys)]).
+
+format_index_keys(_ReadArmoredPgpKey, []) ->
+    [];
+format_index_keys(ReadArmoredPgpKey, [Key|Rest]) ->
+    {ok, ArmoredPgpKey} = ReadArmoredPgpKey(Key),
+    {ok, _Opt, PgpKey} = pgp_armor:decode(ArmoredPgpKey),
+    {DecodedPgpKey, Context} = pgp_parse:decode(PgpKey, #{}),
+    [format_index_lines(DecodedPgpKey, Context)|
+     format_index_keys(ReadArmoredPgpKey, Rest)].
+
+format_index_lines([], _Context) ->
+    [];
+format_index_lines([{key, #{key_id := KeyId}}|Rest], Context) ->
+    Key = maps:get(KeyId, Context),
+    [<<"pub:">>,
+     format_fingerprint(Key), <<":">>,
+     format_key_algo(Key), <<":">>,
+     format_keylen(Key), <<":">>,
+     format_creationdate(Key), <<":">>,
+     format_expirationdate(Key), <<":">>,
+     format_flags(Key), <<"\n">>|
+     format_index_lines(Rest, Context)];
+format_index_lines([{user_id, #{value := UserId}}|Rest], Context) ->
+    %% FIXME: According to "Section 5.2: Machine Readable Indexes" we
+    %% need to figure out the "creationdate", "expirationdate" and
+    %% "flags" from the self-signature (if any) for this uid. I just
+    %% leave them empty for now.
+    [<<"uid:">>,
+     format_uid(UserId), <<":">>,
+     format_creationdate(undefined), <<":">>,
+     format_expirationdate(undefined), <<":">>,
+     format_flags(undefined), <<"\n">>|
+     format_index_lines(Rest, Context)];
+format_index_lines([_|Rest], Context) ->
+    format_index_lines(Rest, Context).
+
+format_fingerprint(#{fingerprint := Fingerprint}) ->
+    keydir_service:bin_to_hexstr(Fingerprint);
+format_fingerprint(_) ->
+    <<>>.
+
+format_key_algo(#{use := [encrypt, sign], type := rsa}) ->
+    ?i2b(?PUBLIC_KEY_ALGORITHM_RSA_ENCRYPT_OR_SIGN);
+format_key_algo(#{use := [encrypt], type := rsa}) ->
+    ?i2b(?PUBLIC_KEY_ALGORITHM_RSA_ENCRYPT);
+format_key_algo(#{use := [sign], type := rsa}) ->
+    ?i2b(?PUBLIC_KEY_ALGORITHM_RSA_SIGN);
+format_key_algo(#{type := dss}) ->
+    ?i2b(?PUBLIC_KEY_ALGORITHM_DSA);
+format_key_algo(#{type := dsa}) ->
+    ?i2b(?PUBLIC_KEY_ALGORITHM_DSA);
+format_key_algo(#{type := elgamal}) ->
+    ?i2b(?PUBLIC_KEY_ALGORITHM_ELGAMAL);
+format_key_algo(_) ->
+    <<>>.
+
+format_keylen(_) ->
+    %% FIXME: What is the best way to calculate the key length
+    <<>>.
+
+format_creationdate(#{creation := Datetime}) ->
+    ?i2b(calendar:datetime_to_gregorian_seconds(Datetime));
+format_creationdate(_) ->
+    <<>>.
+
+format_expirationdate(#{expiration := Datetime}) ->
+    ?i2b(calendar:datetime_to_gregorian_seconds(Datetime));
+format_expirationdate(_) ->
+    <<>>.
+
+format_flags(_) ->
+    <<>>.
+
+format_uid(UserId) ->
+    uri_string:recompose(#{path => UserId}).

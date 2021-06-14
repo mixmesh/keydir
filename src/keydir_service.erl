@@ -144,7 +144,7 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                                         filename:join(
                                           [DataDir, EncodedFingerprint]),
                                     {200, {file, KeyFilename},
-                                     [{content_type, "text/plain"}]};
+                                     [{content_type, "application/pgp-keys"}]};
                                 [] ->
                                     404;
                                 MultipleKeys when is_list(MultipleKeys) ->
@@ -160,11 +160,10 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                                         filename:join(
                                           [DataDir, EncodedFingerprint]),
                                     {200, {file, KeyFilename},
-                                     [{content_type, "text/plain"}]};
+                                     [{content_type, "application/pgp-keys"}]};
                                 [] ->
                                     404;
                                 MultipleKeys when is_list(MultipleKeys) ->
-                                    io:format("MAJS: ~p\n", [MultipleKeys]),
                                     501
                             end;
                         {value, _} ->
@@ -177,10 +176,17 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                         {value, {_, "0x" ++ EncodedKeyId}} ->
                             KeyId = hexstr_to_bin(?l2b(EncodedKeyId)),
                             Keys = keydir_read(KeydirDb, #{key_id => KeyId}),
-                            {json, 200, #{<<"keys">> => matching_keys(Keys)}};
-                        {value, {_, Text}} ->
-                            Keys = keydir_read(KeydirDb, #{nym => ?l2b(Text)}),
-                            {json, 200, #{<<"keys">> => matching_keys(Keys)}};
+                            ReadArmoredKey =
+                                fun(Key) -> read_armored_key(DataDir, Key) end,
+                            {200, keydir_pgp:format_index(ReadArmoredKey, Keys),
+                             [{content_type, "text/plain"}]};
+                        {value, {_, UserId}} ->
+                            Keys = keydir_read(KeydirDb,
+                                               #{user_id => ?l2b(UserId)}),
+                            ReadArmoredKey =
+                                fun(Key) -> read_armored_key(DataDir, Key) end,
+                            {200, keydir_pgp:format_index(ReadArmoredKey, Keys),
+                             [{content_type, "text/plain"}]};
                         false ->
                             404
                     end;
@@ -192,6 +198,10 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
         _Tokens ->
             501
     end.
+
+read_armored_key(DataDir, #keydir_key{fingerprint = Fingerprint}) ->
+    KeyFilename = filename:join([DataDir, bin_to_hexstr(Fingerprint)]),
+    file:read_file(KeyFilename).
 
 handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
     Url = Request#http_request.uri,
@@ -437,7 +447,7 @@ handle_http_post(Socket, Request, Body, [DataDir, SessionDb, KeydirDb]) ->
                             filename:join(
                               [DataDir, bin_to_hexstr(DecodedFingerprint)]),
                         {200, {file, KeyFilename},
-                         [{content_type, "application/octet-stream"}]};
+                         [{content_type, "application/pgp-keys"}]};
                     Keys ->
                         {json, 200, #{<<"keys">> => matching_keys(Keys)}}
                 end
@@ -766,6 +776,9 @@ keydir_create({Db, FileDb}, Key) ->
             {error, already_exists}
     end.
 
+keydir_read({Db, _FileDb}, #{fingerprint := Fingerprint})
+  when Fingerprint /= undefined ->
+    ets:lookup(Db, Fingerprint);
 keydir_read({Db, _FileDb}, FilterMap) ->
     FingerprintFilter = maps:get(fingerprint, FilterMap, undefined),
     KeyIdFilter = maps:get(key_id, FilterMap, undefined),

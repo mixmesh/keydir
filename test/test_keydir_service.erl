@@ -255,12 +255,7 @@ start(LoginMode) ->
     
     %%
     io:format("**** Search Alice's key using manual HKP lookup/index\n"),
-    {ok, 200, #{<<"keys">> :=
-                    [#{<<"fingerprint">> := EncodedAliceFingerprint,
-                       <<"keyId">> := EncodedAliceKeyId,
-                       <<"nym">> := <<"alice">>,
-                       <<"userIds">> := [<<"alice">>],
-                       <<"verified">> := IsBankId}]}} =
+    {ok, 200, <<"info:1:1\npub:7646CAEC405ED6A539EAD95AB96F1E8D4043B2E4:1::63789972135::\nuid:alice:::\n">>} =
         http_get("https://127.0.0.1:4436/pks/lookup?op=index&search=0x" ++
                      ?b2l(EncodedAliceKeyId)),
     
