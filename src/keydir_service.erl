@@ -67,6 +67,11 @@ bin_to_hexstr(Bin) ->
 
 %%
 %% Exported: hexstr_to_bin
+%% 
+%% FIXME:
+%% A "one" liner... (when correct number of bytes, otherwise append $0)
+%%
+%% << <<(?l2i([X1,X0],16))>> || <<X1,X0>> <= Bin >>
 %%
 
 hexstr_to_bin(undefined) ->
@@ -77,6 +82,7 @@ hexstr_to_bin(Bin) ->
 hexstr_to_bin([], Acc) ->
     ?l2b(lists:reverse(Acc));
 hexstr_to_bin([X,Y|T], Acc) ->
+    %% why not list_to_integer([X,Y], 16)  ????
     {ok, [V], []} = io_lib:fread("~16u", [X, Y]),
     hexstr_to_bin(T, [V|Acc]);
 hexstr_to_bin([X|T], Acc) ->
@@ -135,8 +141,9 @@ handle_http_get(_Socket, #http_request{uri = Url}, _Body,
                 {value, {_, "get"}} ->
                     case lists:keysearch("search", 1, ParsedQueryString) of
                         {value, {_, "0x" ++ EncodedKeyId}} ->
-                            KeyId = hexstr_to_bin(?l2b(EncodedKeyId)),
-                            case keydir_read(KeydirDb, #{key_id => KeyId}) of
+                            ID = hexstr_to_bin(?l2b(EncodedKeyId)),
+			    %% ready keyid/fingerprint
+                            case keydir_read_by_id(KeydirDb, ID) of
                                 [#keydir_key{fingerprint = Fingerprint}] ->
                                     EncodedFingerprint =
                                         bin_to_hexstr(Fingerprint),
@@ -776,6 +783,12 @@ keydir_create({Db, FileDb}, Key) ->
             {error, already_exists}
     end.
 
+keydir_read_by_id(KeyDirDb, ID) when is_binary(ID), byte_size(ID) =:= 20 ->
+    keydir_read(KeyDirDb, #{ fingerprint => ID });
+keydir_read_by_id(KeyDirDb, ID) when is_binary(ID), byte_size(ID) =:= 8 ->
+    keydir_read(KeyDirDb, #{ key_id => ID }).
+
+
 keydir_read({Db, _FileDb}, #{fingerprint := Fingerprint})
   when Fingerprint /= undefined ->
     ets:lookup(Db, Fingerprint);
@@ -825,7 +838,7 @@ keydir_read({Db, _FileDb}, FilterMap) ->
 keydir_update({Db, FileDb}, Key) ->
     true = ets:insert(Db, Key),
     dets:insert(FileDb, Key),
-    dets:sync(FileDb). %% FIXME: Remove!
+    dets:sync(FileDb). %% FIXME: Remove! (but not yet :-)
 
 keydir_delete({Db, FileDb}, Fingerprint) ->
     case ets:lookup(Db, Fingerprint) of
