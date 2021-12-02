@@ -20,7 +20,7 @@
           serv:spawn_server_result().
 
 start_link(KeydirDb, DataDir) ->
-    ?spawn_server_opts(
+    ?spawn_server(
        fun(Parent) -> init(Parent, KeydirDb, DataDir) end,
        fun ?MODULE:message_handler/1,
        #serv_options{name = ?MODULE}).
