@@ -67,7 +67,7 @@ bin_to_hexstr(Bin) ->
 
 %%
 %% Exported: hexstr_to_bin
-%% 
+%%
 %% FIXME:
 %% A "one" liner... (when correct number of bytes, otherwise append $0)
 %%
@@ -774,7 +774,7 @@ new_keydir_db(KeydirDir) ->
     Db = dets:to_ets(FileDb, Db),
     ?dbg_log({initial_keydir_db, ets:tab2list(Db)}),
     {Db, FileDb}.
-    
+
 keydir_create({Db, FileDb}, Key) ->
     case ets:lookup(Db, Key#keydir_key.fingerprint) of
         [] ->
@@ -855,8 +855,7 @@ keydir_delete({Db, FileDb}, Fingerprint) ->
 
 parse_json_body(Request, Body) ->
     case rest_util:parse_body(
-           Request, Body,
-           [{jsone_options, [{object_format, proplist}]}]) of
+           Request, Body, [{json_options, [proplist]}]) of
         {error, _Reason} ->
             throw({error, <<"Invalid JSON format">>});
         JsonValue ->
